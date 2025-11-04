@@ -1,79 +1,89 @@
-<?php
+<html>
+<head>
+<link rel = "stylesheet" href="styles.css" >
+</head>
 <header class="topbar">
-<div class="brand">
-<div class="logo"></div>
-<div class="title">SignalMine – Self‑Healing LP Chat</div>
-<span class="badge">Prototype</span>
-</div>
-<div class="actions">
-<button id="btn-settings" class="btn">Settings</button>
-<button id="btn-clear" class="btn">Clear</button>
-<button id="btn-export" class="btn btn-primary">Export</button>
-</div>
+    <div class="brand">
+        <div class="logo"></div>
+        <div class="title">SignalMine – Self‑Healing LP Chat</div>
+        <span class="badge">Prototype</span>
+    </div>
+    <div class="actions">
+        <button id="btn-settings" class="btn">Settings</button>
+        <button id="btn-clear" class="btn">Clear</button>
+        <button id="btn-export" class="btn btn-primary">Export</button>
+    </div>
 </header>
 
 
 <main class="shell">
-<section class="chat">
-<div id="messages" class="messages"></div>
-<div class="composer">
-<textarea id="input" placeholder="Describe a scheduling/assignment problem in natural language… (Shift+Enter for newline)" rows="1"></textarea>
-<button id="btn-send" class="btn btn-primary">Send</button>
-</div>
-<div class="hint">Press <kbd>Enter</kbd> to send • <kbd>Shift</kbd>+<kbd>Enter</kbd> for newline</div>
-</section>
+    <section class="chat">
+        <div id="messages" class="messages"></div>
+        <div class="composer">
+            <textarea id="input"
+                placeholder="Describe a scheduling/assignment problem in natural language… (Shift+Enter for newline)"
+                rows="1"></textarea>
+            <button id="btn-send" class="btn btn-primary">Send</button>
+        </div>
+        <div class="hint">Press <kbd>Enter</kbd> to send • <kbd>Shift</kbd>+<kbd>Enter</kbd> for newline</div>
+    </section>
 
 
-<aside class="sidebar">
-<div class="card">
-<h3>Run settings</h3>
-<ul>
-<li><b>Self‑healing:</b> handled by backend</li>
-<li><b>Auditor:</b> flags missing constraints</li>
-<li><b>Output:</b> LaTeX or Python LP</li>
-</ul>
-</div>
-<div class="card">
-<h3>Connection</h3>
-<div class="kv"><span>Proxy:</span><code>/api/chat.php</code></div>
-<div class="kv"><span>Backend:</span><code id="kv-backend"></code></div>
-<button id="btn-open-settings" class="btn">Edit</button>
-</div>
-<div class="card">
-<h3>Sample prompts</h3>
-<div class="samples">
-<button class="sample">Assign 8 courses to 4 rooms (capacities 30/40/40/80) over 5 time slots; no instructor overlaps; CSCI‑240 needs projector; minimize overcapacity.</button>
-<button class="sample">Schedule 12 nurses to 3 shifts/day for 7 days; each works ≤ 5 shifts, ≥ 1 day off; distribute nights evenly; minimize understaffing.</button>
-</div>
-</div>
-</aside>
+    <aside class="sidebar">
+        <div class="card">
+            <h3>Run settings</h3>
+            <ul>
+                <li><b>Self‑healing:</b> handled by backend</li>
+                <li><b>Auditor:</b> flags missing constraints</li>
+                <li><b>Output:</b> LaTeX or Python LP</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h3>Connection</h3>
+            <div class="kv"><span>Proxy:</span><code>/api/chat.php</code></div>
+            <div class="kv"><span>Backend:</span><code id="kv-backend"></code></div>
+            <button id="btn-open-settings" class="btn">Edit</button>
+        </div>
+        <div class="card">
+            <h3>Sample prompts</h3>
+            <div class="samples">
+                <button class="sample">Assign 8 courses to 4 rooms (capacities 30/40/40/80) over 5 time slots; no
+                    instructor overlaps; CSCI‑240 needs projector; minimize overcapacity.</button>
+                <button class="sample">Schedule 12 nurses to 3 shifts/day for 7 days; each works ≤ 5 shifts, ≥ 1 day
+                    off; distribute nights evenly; minimize understaffing.</button>
+            </div>
+        </div>
+    </aside>
 </main>
 
 
 <!-- Settings Modal -->
 <dialog id="settings">
-<form method="dialog" class="modal">
-<h2>API Settings</h2>
-<label>Backend Base URL (server that solves your problem)
-<input id="inp-base" placeholder="http://localhost:8000/api" />
-</label>
-<label>Bearer Token (optional)
-<input id="inp-token" placeholder="sk-..." />
-</label>
-<menu>
-<button value="cancel" class="btn">Close</button>
-<button value="default" class="btn btn-primary">Save</button>
-</menu>
-<p class="note">The browser talks to <code>/api/chat.php</code> which proxies to
-<code>BASE_URL + "/chat"</code>. Streaming (<code>text/event-stream</code>) and JSON are supported.</p>
-</form>
+    <form method="dialog" class="modal">
+        <h2>API Settings</h2>
+        <label>Backend Base URL (server that solves your problem)
+            <input id="inp-base" placeholder="http://localhost:8000/api" />
+        </label>
+        <label>Bearer Token (optional)
+            <input id="inp-token" placeholder="sk-..." />
+        </label>
+        <menu>
+            <button value="cancel" class="btn">Close</button>
+            <button value="default" class="btn btn-primary">Save</button>
+        </menu>
+        <p class="note">The browser talks to <code>/api/chat.php</code> which proxies to
+            <code>BASE_URL + "/chat"</code>. Streaming (<code>text/event-stream</code>) and JSON are supported.
+        </p>
+    </form>
 </dialog>
 
 
-<footer class="footer">Built for the SignalMine multi‑agent LP project. UI only; all reasoning runs server‑side.</footer>
+<footer class="footer">Built for the SignalMine multi‑agent LP project. UI only; all reasoning runs server‑side.
+</footer>
 
 
 <script>window.__APP__ = { initialMessage: `Welcome! Describe your scheduling/assignment problem in natural language (e.g.\n‘Assign courses to rooms and times so no instructor overlaps; rooms have capacity constraints; some courses require projectors.’) Then I’ll draft a linear program and show how the auditor/self‑healer responds.` };</script>
 <script src="./app.js" type="module"></script>
 </body>
+
 </html>
