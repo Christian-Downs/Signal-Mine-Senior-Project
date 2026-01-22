@@ -1,0 +1,173 @@
+*   commit 12c88cdf9d56c881bf83ebba6f04d3b3fceb2523 (HEAD -> master, origin/master, origin/HEAD)
+|\  Merge: 90b0e19 18becfc
+| | Author: Ming Huang <56358518+Starship-Nova@users.noreply.github.com>
+| | Date:   Tue Nov 18 12:17:44 2025 -0600
+| | 
+| |     Merge pull request #15 from Christian-Downs/addPyTest
+| |     
+| |     add demo
+| | 
+| * commit 18becfc1d984460d6f029a55e947d2333810a950 (origin/addPyTest)
+| | Author: Starship-Nova <ming.huang.mat@gmail.com>
+| | Date:   Tue Nov 18 12:16:27 2025 -0600
+| | 
+| |     add demo
+| | 
+| |  test_lp.py | 139 ++++++++++++++++++++++++++++++++++++++++-----------------
+| |  1 file changed, 99 insertions(+), 40 deletions(-)
+| |   
+* |   commit 90b0e1962bdf6f8b3d2e1b106a3ffccc3d754d7e
+|\ \  Merge: 9acf6db b501682
+| |/  Author: Christian <60242560+Christian-Downs@users.noreply.github.com>
+|/|   Date:   Tue Nov 4 12:11:12 2025 -0600
+| |   
+| |       Merge pull request #14 from terminal-terror/patch-1
+| |       
+| |       Update index.html
+| | 
+| * commit b5016825dcf2f8e90e73c431d9d2145c3aeb8b73
+|/  Author: terminal-terror <125930677+terminal-terror@users.noreply.github.com>
+|   Date:   Tue Nov 4 12:07:14 2025 -0600
+|   
+|       Update index.html
+|       
+|       removed connections box
+|   
+|    frontend/public/index.html | 9 ++-------
+|    1 file changed, 2 insertions(+), 7 deletions(-)
+|   
+*   commit 9acf6db29d3f087ddea1ad17b799512cf1291534
+|\  Merge: 06c60a4 c0f4c53
+| | Author: Ming Huang <56358518+Starship-Nova@users.noreply.github.com>
+| | Date:   Tue Nov 4 12:03:27 2025 -0600
+| | 
+| |     Merge pull request #13 from Christian-Downs/new
+| |     
+| |     add test_lp
+| | 
+| * commit c0f4c53fa139f440f7d505accbf24d1f0bfd8607 (origin/new)
+|/  Author: Starship-Nova <ming.huang.mat@gmail.com>
+|   Date:   Tue Nov 4 12:02:27 2025 -0600
+|   
+|       add test_lp
+|   
+|    test_lp.py | 3 ---
+|    1 file changed, 3 deletions(-)
+| 
+* commit 06c60a4fc557b816c622140a83c0d4ff3f62db7b
+| Author: Starship-Nova <ming.huang.mat@gmail.com>
+| Date:   Tue Nov 4 12:01:50 2025 -0600
+| 
+|     add test_lp
+| 
+|  test_lp.py | 104 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+|  1 file changed, 104 insertions(+)
+|   
+*   commit fccd6d3cb5cc8bc9ad4851e3b91c8feeaa49243d
+|\  Merge: 40a6df0 6dfa182
+| | Author: Christian <60242560+Christian-Downs@users.noreply.github.com>
+| | Date:   Tue Nov 4 11:38:29 2025 -0600
+| | 
+| |     Merge pull request #12 from terminal-terror/Frontend
+| |     
+| |     Frontend
+| | 
+| * commit 6dfa182fdf586b9bf7ebe7019e701ea6d6db273c
+| | Author: Terminal Terror <carolwi@siue.edu>
+| | Date:   Tue Nov 4 11:35:34 2025 -0600
+| | 
+| |     Added frontend to our project
+| | 
+| |  frontend/public/app.js     | 118 +++++++--------
+| |  frontend/public/index.html | 126 ++++++++--------
+| |  frontend/public/styles.css | 328 +++++++++++++++++++++++++++++++++++------
+| |  3 files changed, 409 insertions(+), 163 deletions(-)
+| | 
+| * commit 874711ba39e423a0a975f6960dfa62f007bead91
+|/  Author: Terminal Terror <carolwi@siue.edu>
+|   Date:   Tue Nov 4 11:26:02 2025 -0600
+|   
+|       uploading front end
+|   
+|    frontend/Signal-Mine-Senior-Project |  1 +
+|    frontend/api/chat.php               | 78 ++++++++++++++++++++++++++++++++
+|    frontend/api/config.php             | 10 +++++
+|    frontend/public/app.js              | 78 ++++++++++++++++++++++++++++++++
+|    frontend/public/index.html          | 79 +++++++++++++++++++++++++++++++++
+|    frontend/public/styles.css          | 64 ++++++++++++++++++++++++++
+|    6 files changed, 310 insertions(+)
+|   
+*   commit 40a6df053930178c3e520b7996197a8a41fce865
+|\  Merge: b7546b5 4055fd2
+| | Author: Christian <60242560+Christian-Downs@users.noreply.github.com>
+| | Date:   Thu Oct 2 10:31:26 2025 -0500
+| | 
+| |     Merge pull request #11 from Christian-Downs/FLASK-API
+| |     
+| |     Added Flask API Frontend
+| | 
+| * commit 4055fd2ade174d5b88f15ac770f6e1920dcd1bd0 (origin/FLASK-API, FLASK-API)
+|/  Author: Christian <60242560+Christian-Downs@users.noreply.github.com>
+|   Date:   Thu Oct 2 10:29:22 2025 -0500
+|   
+|       Added Flask API Frontend
+|   
+|    frontend.py | 37 +++++++++++++++++++++++++++++++++++++
+|    1 file changed, 37 insertions(+)
+|   
+*   commit b7546b52b8b13cddda22af402f423a90639e0270
+|\  Merge: 9d32d15 6a4a44b
+| | Author: Ming Huang <56358518+Starship-Nova@users.noreply.github.com>
+| | Date:   Wed Oct 1 19:40:48 2025 -0500
+| | 
+| |     Merge pull request #10 from Christian-Downs/testPydantic
+| |     
+| |     add test.py and README.md
+| | 
+| * commit 6a4a44b2245b7f4f3c4838ffaab52e4ef7b8846e (origin/testPydantic)
+|/  Author: Starship-Nova <ming.huang.mat@gmail.com>
+|   Date:   Wed Oct 1 19:40:03 2025 -0500
+|   
+|       add test.py and README.md
+|   
+|    README.md | 18 ++++++++++++++++++
+|    test.py   | 53 +++++++++++++++++++++++++++++++++++++++++++++++++++++
+|    2 files changed, 71 insertions(+)
+|   
+*   commit 9d32d15503a3fe09e5afb901580437755a600330
+|\  Merge: e557f62 2bdad98
+| | Author: Ming Huang <56358518+Starship-Nova@users.noreply.github.com>
+| | Date:   Wed Oct 1 19:03:38 2025 -0500
+| | 
+| |     Merge pull request #9 from Christian-Downs/Ming
+| |     
+| |     add readme
+| | 
+| * commit 2bdad9880485b406e4e6d3244ff5cfe80032d33c
+|/  Author: Starship-Nova <ming.huang.mat@gmail.com>
+|   Date:   Wed Oct 1 18:59:33 2025 -0500
+|   
+|       add readme
+|   
+|    README.md | 4 ++++
+|    1 file changed, 4 insertions(+)
+| 
+* commit e557f628606853857c8144c90d1ff0ddf90b082a
+| Author: Christian Downs <christian.downs.15@gmail.com>
+| Date:   Fri Sep 5 14:09:59 2025 -0500
+| 
+|     Added pydantic to requirements.txt
+| 
+|  requirements.txt | 1 +
+|  1 file changed, 1 insertion(+)
+| 
+* commit 4725e8082389952243b490bcb74da5e4f433a862
+  Author: Christian Downs <christian.downs.15@gmail.com>
+  Date:   Fri Sep 5 14:06:04 2025 -0500
+  
+      Initialization  of project
+  
+   .gitignore       |  3 +++
+   main.py          | 16 ++++++++++++++++
+   requirements.txt |  0
+   3 files changed, 19 insertions(+)

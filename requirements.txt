@@ -1,1 +1,1 @@
-pydantic-ai
+# SignalMine LP Chat Depe

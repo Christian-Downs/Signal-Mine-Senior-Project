@@ -1,22 +1,10 @@
-To get this repository on your machine, enter a new folder and run the command
-```
-git clone https://github.com/Christian-Downs/Signal-Mine-Senior-Project
-```
+# SignalMine – Self-Healing LP Chat
 
+A multi-agent system that converts natural language optimization problems into validated Linear Programs using Pydantic AI agents with self-healing capabilities.
 
-To run test.py: run in the terminal
-```
-pip install --upgrade openai pydantic
-```
+## Features
 
-Then do
-```
-# macOS / Linux
-export OPENAI_API_KEY="sk-..."
-# Windows (PowerShell)
-$Env:OPENAI_API_KEY="sk-..."
-```
-You must run the following command in the same terminal that you set the api key in
-```
-python test.py
-```
+- 🤖 **Pydantic AI Agents** - Generate Linear Programs from natural language
+- 🔧 **Self-Healing** - If LP validation fails, a fixer agent automatically corrects it
+- 🎨 **ChatGPT-style UI** - Clean HTML/CSS/JS frontend
+- 🔄 **Model Selection** - Switch between GPT-4o, GPT-4o-mini, GPT-4-turbo, GPT-
