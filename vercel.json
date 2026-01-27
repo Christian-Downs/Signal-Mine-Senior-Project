@@ -2,7 +2,15 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/*.py",
+      "src": "api/chat.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/models.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/health.py",
       "use": "@vercel/python"
     },
     {
@@ -12,11 +20,19 @@
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
+      "src": "/api/chat",
+      "dest": "/api/chat.py"
     },
     {
-      "src": "/(.*\\.(js|css|ico|png|jpg|svg))",
+      "src": "/api/models",
+      "dest": "/api/models.py"
+    },
+    {
+      "src": "/api/health",
+      "dest": "/api/health.py"
+    },
+    {
+      "src": "/(.*\\.(js|css|ico|png|jpg|svg|html))",
       "dest": "/public/$1"
     },
     {
