@@ -23,8 +23,5 @@
       "src": "/(.*)",
       "dest": "/public/index.html"
     }
-  ],
-  "env": {
-    "OPENAI_API_KEY": "@openai-api-key"
-  }
+  ]
 }
