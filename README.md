@@ -13,7 +13,7 @@ A multi-agent system that converts natural language optimization problems into v
 
 ---
 
-## Deploy to Vercel (Recommended)
+## Deploy to Vercel
 
 ### 1. Push to GitHub
 ```bash
