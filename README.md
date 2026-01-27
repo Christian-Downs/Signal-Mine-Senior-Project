@@ -9,8 +9,31 @@ A multi-agent system that converts natural language optimization problems into v
 - 🎨 **ChatGPT-style UI** - Clean HTML/CSS/JS frontend
 - 🔄 **Model Selection** - Switch between GPT-4o, GPT-4o-mini, GPT-4-turbo, GPT-3.5-turbo
 - 📝 **LaTeX & Python Output** - Get mathematical formulations and working code
+- ☁️ **Vercel Ready** - Deploy to Vercel with serverless functions
 
-## Quick Start
+---
+
+## Deploy to Vercel (Recommended)
+
+### 1. Push to GitHub
+```bash
+git add .
+git commit -m "Add Vercel support"
+git push
+```
+
+### 2. Deploy on Vercel
+1. Go to [vercel.com](https://vercel.com) and import your GitHub repo
+2. Add environment variable:
+   - Name: `OPENAI_API_KEY`
+   - Value: `sk-your-key-here`
+3. Click **Deploy**
+
+That's it! Your app will be live at `https://your-project.vercel.app`
+
+---
+
+## Local Development
 
 ### 1. Clone the repository
 ```bash
@@ -39,6 +62,26 @@ python frontend.py
 
 ### 5. Open in browser
 Navigate to [http://localhost:5000](http://localhost:5000)
+
+---
+
+## Project Structure
+
+```
+├── api/                  # Vercel serverless functions
+│   ├── chat.py          # Main chat endpoint
+│   ├── models.py        # Available models
+│   └── health.py        # Health check
+├── public/              # Static frontend files
+│   ├── index.html
+│   ├── app.js
+│   └── styles.css
+├── frontend.py          # Flask backend (local dev)
+├── vercel.json          # Vercel configuration
+└── requirements.txt
+```
+
+---
 
 ## Using the API from Python
 
@@ -69,8 +112,8 @@ Commands:
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Frontend      │────▶│   Flask API     │────▶│  OpenAI API     │
-│  (HTML/JS/CSS)  │     │  (frontend.py)  │     │                 │
+│   Frontend      │────▶│  Vercel/Flask   │────▶│  OpenAI API     │
+│  (HTML/JS/CSS)  │     │   API Routes    │     │                 │
 └─────────────────┘     └────────┬────────┘     └─────────────────┘
                                  │
                         ┌────────▼────────┐
