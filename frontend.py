@@ -190,6 +190,32 @@ Please fix it and return ONLY valid JSON matching the required schema."""
     
     return json.loads(response.choices[0].message.content)
 
+def lp_is_there(response: str, model:str) -> bool:
+    """
+    Heuristic check to see if the response contains a valid LP structure.
+    This is a quick check before attempting full validation.
+    """
+    try:
+        client = get_openai_client()
+
+        is_lp_there_prompt = f"""
+Check if the following response contains a valid Linear Program JSON structure with keys: linear_program, objective_function, constraints, etc.
+respond is only one word yes or no."""
+        response = client.chat.completions.create(
+            model=model,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content":   is_lp_there_prompt},
+                {"role": "user", "content": response}
+            ],
+            temperature=0.1,
+        )
+
+        response = response.choices[0].message.content
+        return "yes" in response.lower()
+    except json.JSONDecodeError:
+        return False
+
 
 def validate_and_heal(raw_data: dict, raw_content: str, model: str) -> tuple:
     """
@@ -199,7 +225,11 @@ def validate_and_heal(raw_data: dict, raw_content: str, model: str) -> tuple:
     was_healed = False
     
     try:
+        is_there = lp_is_there(raw_content, model)
+        if not is_there:
+            raise ValueError("LP structure not detected in response")
         validated = LPResponse.model_validate(raw_data)
+
         return validated, was_healed
     except ValidationError as e:
         # Self-healing: send to fixer agent
