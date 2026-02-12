@@ -12,6 +12,9 @@ from typing import List, Dict, Optional
 from pydantic import BaseModel, Field, ValidationError
 from openai import OpenAI
 
+import psycopg
+from dotenv import load_dotenv
+
 
 # ──────────────────────────────────────────────────────────────
 # Pydantic Models
@@ -182,6 +185,23 @@ $$\\text{{{lp.objective_type}}} \\quad {lp.objective_function}$$
     return msg
 
 
+def create_neon_cursor() -> psycopg.Cursor:
+
+    load_dotenv()
+    conn_string = os.getenv("DATABASE_URL")
+    try:
+        with psycopg.connect(conn_string) as conn:
+            print("Connection established")
+            # Open a cursor to perform database operations
+            with conn.cursor() as cur:
+                print("Cursor created")
+                return cur
+    except Exception as e:
+        print(f"Error connecting to database: {e}")
+        raise
+
+
+
 # ──────────────────────────────────────────────────────────────
 # Vercel Handler
 # ──────────────────────────────────────────────────────────────
@@ -196,6 +216,8 @@ class handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
+            cursor = create_neon_cursor()
+            print("Database cursor created successfully")
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length)
             data = json.loads(body)
@@ -237,3 +259,4 @@ class handler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
         self.wfile.write(json.dumps(data).encode())
+
