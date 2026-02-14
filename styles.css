@@ -22,7 +22,8 @@
     box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
     height: 100%;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     background: var(--bg-dark);
@@ -218,7 +219,8 @@ body {
     margin-bottom: 0;
 }
 
-.message-text ul, .message-text ol {
+.message-text ul,
+.message-text ol {
     margin: 12px 0;
     padding-left: 24px;
 }
@@ -306,12 +308,25 @@ body {
     animation: bounce 1.4s infinite ease-in-out both;
 }
 
-.loading-dots span:nth-child(1) { animation-delay: -0.32s; }
-.loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+.loading-dots span:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.loading-dots span:nth-child(2) {
+    animation-delay: -0.16s;
+}
 
 @keyframes bounce {
-    0%, 80%, 100% { transform: scale(0); }
-    40% { transform: scale(1); }
+
+    0%,
+    80%,
+    100% {
+        transform: scale(0);
+    }
+
+    40% {
+        transform: scale(1);
+    }
 }
 
 /* Input Area */
@@ -402,16 +417,232 @@ body {
     color: var(--error);
 }
 
+/* Register Button */
+.btn-register {
+    width: 100%;
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-register:hover {
+    background: var(--accent-hover);
+}
+
+/* Register Modal */
+.register-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.register-modal-content {
+    background: var(--bg-sidebar);
+    padding: 20px;
+    border-radius: 8px;
+    width: 300px;
+    text-align: center;
+    border: 1px solid var(--border);
+    position: relative;
+}
+
+.register-modal h2 {
+    color: var(--text-primary);
+    margin-bottom: 16px;
+}
+
+.register-modal form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.register-modal input {
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+}
+
+.register-modal input::placeholder {
+    color: var(--text-muted);
+}
+
+.register-modal input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.register-modal button[type="submit"] {
+    padding: 10px;
+    background: var(--accent);
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+}
+
+.register-modal button[type="submit"]:hover {
+    background: var(--accent-hover);
+}
+
+.register-message {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.register-message.error {
+    color: var(--error);
+}
+
+.register-message.success {
+    color: var(--accent);
+}
+
+.register-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 20px;
+    cursor: pointer;
+}
+
+/* Login Button */
+.btn-login {
+    width: 100%;
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-login:hover {
+    background: var(--accent-hover);
+}
+
+/* Login Modal */
+.login-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.login-modal-content {
+    background: var(--bg-sidebar);
+    padding: 20px;
+    border-radius: 8px;
+    width: 300px;
+    text-align: center;
+    border: 1px solid var(--border);
+    position: relative;
+}
+
+.login-modal h2 {
+    color: var(--text-primary);
+    margin-bottom: 16px;
+}
+
+.login-modal form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.login-modal input {
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+}
+
+.login-modal input::placeholder {
+    color: var(--text-muted);
+}
+
+.login-modal input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.login-modal button[type="submit"] {
+    padding: 10px;
+    background: var(--accent);
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+}
+
+.login-modal button[type="submit"]:hover {
+    background: var(--accent-hover);
+}
+
+.login-message {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.login-message.error {
+    color: var(--error);
+}
+
+.login-message.success {
+    color: var(--accent);
+}
+
+.login-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 20px;
+    cursor: pointer;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .sidebar {
         display: none;
     }
-    
+
     .messages {
         padding: 0 16px;
     }
-    
+
     .input-container {
         padding: 12px;
     }

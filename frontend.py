@@ -270,7 +270,7 @@ def get_models():
 def chat():
     """
     Main chat endpoint.
-    Accepts: { prompt, model?, conversation_id? }
+    Accepts: { prompt, model?, conversation_id? } 1
     Returns: { message, linear_program?, was_healed, conversation_id }
     """
     data = request.get_json(force=True)
@@ -376,6 +376,7 @@ def delete_conversation(conv_id):
 def health():
     """Health check endpoint"""
     return jsonify({"status": "up"})
+
 
 
 if __name__ == "__main__":

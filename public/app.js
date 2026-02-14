@@ -32,7 +32,7 @@ async function fetchModels() {
     try {
         const resp = await fetch(`${API_BASE}/models`);
         const data = await resp.json();
-        
+
         modelSelect.innerHTML = '';
         for (const [id, name] of Object.entries(data.models)) {
             const option = document.createElement('option');
@@ -50,16 +50,16 @@ async function fetchModels() {
 
 async function sendMessage(prompt) {
     if (isLoading || !prompt.trim()) return;
-    
+
     isLoading = true;
     updateUI();
-    
+
     // Add user message
     addMessage('user', prompt);
-    
+
     // Add loading message
     const loadingId = addMessage('assistant', '', true);
-    
+
     try {
         const resp = await fetch(`${API_BASE}/chat`, {
             method: 'POST',
@@ -70,12 +70,12 @@ async function sendMessage(prompt) {
                 history: conversationHistory  // Send history for Vercel (stateless)
             })
         });
-        
+
         const data = await resp.json();
-        
+
         // Remove loading message
         removeMessage(loadingId);
-        
+
         if (data.error) {
             addMessage('assistant', `**Error:** ${data.error}`, false, true);
         } else {
@@ -85,13 +85,13 @@ async function sendMessage(prompt) {
             conversationHistory.push({ role: 'assistant', content: JSON.stringify(data.linear_program) });
             addMessage('assistant', data.message, false, false, data.was_healed);
         }
-        
+
     } catch (e) {
         removeMessage(loadingId);
         addMessage('assistant', `**Connection Error:** Could not reach the server.`, false, true);
         console.error('Send error:', e);
     }
-    
+
     isLoading = false;
     updateUI();
 }
@@ -107,25 +107,25 @@ function addMessage(role, content, isLoading = false, isError = false, wasHealed
     const div = document.createElement('div');
     div.id = id;
     div.className = `message ${role}`;
-    
-    const avatarSvg = role === 'user' 
+
+    const avatarSvg = role === 'user'
         ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'
         : '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>';
-    
+
     let contentHtml;
     if (isLoading) {
         contentHtml = `<div class="loading-dots"><span></span><span></span><span></span></div>`;
     } else {
         contentHtml = renderMarkdown(content);
     }
-    
+
     let statusHtml = '';
     if (wasHealed) {
         statusHtml = '<div class="message-status healed">⚠️ Self-healing was applied to fix the output format</div>';
     } else if (isError) {
         statusHtml = '<div class="message-status error">Request failed</div>';
     }
-    
+
     div.innerHTML = `
         <div class="message-avatar">${avatarSvg}</div>
         <div class="message-content">
@@ -133,16 +133,16 @@ function addMessage(role, content, isLoading = false, isError = false, wasHealed
             ${statusHtml}
         </div>
     `;
-    
+
     messagesEl.appendChild(div);
     scrollToBottom();
-    
+
     // Render math and code highlighting
     if (!isLoading) {
         renderMathIn(div);
         highlightCodeIn(div);
     }
-    
+
     return id;
 }
 
@@ -153,7 +153,7 @@ function removeMessage(id) {
 
 function renderMarkdown(text) {
     if (!text) return '';
-    
+
     // Configure marked
     if (typeof marked !== 'undefined') {
         marked.setOptions({
@@ -162,7 +162,7 @@ function renderMarkdown(text) {
         });
         return marked.parse(text);
     }
-    
+
     // Fallback: basic HTML escaping and line breaks
     return text
         .replace(/&/g, '&amp;')
@@ -202,7 +202,7 @@ function updateUI() {
     // Enable/disable send button
     const hasText = inputEl.value.trim().length > 0;
     sendBtn.disabled = !hasText || isLoading;
-    
+
     // Update status
     if (isLoading) {
         statusIndicator.textContent = 'Generating...';
@@ -217,7 +217,7 @@ function clearChat() {
     const welcome = messagesEl.querySelector('.message');
     messagesEl.innerHTML = '';
     if (welcome) messagesEl.appendChild(welcome.cloneNode(true));
-    
+
     // Reset conversation
     conversationId = null;
     conversationHistory = [];  // Clear history for Vercel
