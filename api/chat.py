@@ -7,10 +7,51 @@ from http.server import BaseHTTPRequestHandler
 import json
 import os
 import uuid
+from datetime import datetime
 from typing import List, Dict, Optional
 
 from pydantic import BaseModel, Field, ValidationError
 from openai import OpenAI
+
+
+# ──────────────────────────────────────────────────────────────
+# Conversation Logging
+# ──────────────────────────────────────────────────────────────
+
+CONVERSATIONS_FILE = os.path.join(os.path.dirname(__file__), "conversations.json")
+
+
+def load_conversations() -> List[dict]:
+    """Load existing conversations from JSON file."""
+    if os.path.exists(CONVERSATIONS_FILE):
+        try:
+            with open(CONVERSATIONS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return []
+    return []
+
+
+def save_conversation(conversation_id: str, prompt: str, response_data: dict, model: str, was_healed: bool):
+    """Save a conversation to the JSON file."""
+    conversations = load_conversations()
+    
+    conversation_entry = {
+        "id": conversation_id,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "model": model,
+        "prompt": prompt,
+        "response": response_data,
+        "was_healed": was_healed
+    }
+    
+    conversations.append(conversation_entry)
+    
+    try:
+        with open(CONVERSATIONS_FILE, "w", encoding="utf-8") as f:
+            json.dump(conversations, f, indent=2, ensure_ascii=False)
+    except IOError as e:
+        print(f"Warning: Could not save conversation: {e}")
 
 
 # ──────────────────────────────────────────────────────────────
@@ -193,6 +234,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
+    
 
     def do_POST(self):
         try:
@@ -218,11 +260,22 @@ class handler(BaseHTTPRequestHandler):
             lp = validated_response.linear_program
             message = build_response_message(lp, validated_response, was_healed)
             
+            conversation_id = str(uuid.uuid4())
+            
+            # Save conversation to JSON file
+            save_conversation(
+                conversation_id=conversation_id,
+                prompt=prompt,
+                response_data=validated_response.model_dump(),
+                model=model,
+                was_healed=was_healed
+            )
+            
             self._send_json({
                 "message": message,
                 "linear_program": validated_response.model_dump(),
                 "was_healed": was_healed,
-                "conversation_id": str(uuid.uuid4()),
+                "conversation_id": conversation_id,
                 "model_used": model
             })
             
