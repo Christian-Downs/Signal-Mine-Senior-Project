@@ -1,0 +1,15 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+.env
+.env.local
+.env.*.local
+node_modules
+.DS_Store
+*.md
+test_*.py
+.idea
+.vercel
+*.pdf
