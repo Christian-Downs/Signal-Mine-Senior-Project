@@ -14,6 +14,22 @@
       "use": "@vercel/python"
     },
     {
+      "src": "api/auth.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/chats.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/user_models.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/logs.py",
+      "use": "@vercel/python"
+    },
+    {
       "src": "public/**",
       "use": "@vercel/static"
     }
@@ -32,6 +48,30 @@
       "dest": "/api/health.py"
     },
     {
+      "src": "/api/auth",
+      "dest": "/api/auth.py"
+    },
+    {
+      "src": "/api/chats/(.*)",
+      "dest": "/api/chats.py"
+    },
+    {
+      "src": "/api/chats",
+      "dest": "/api/chats.py"
+    },
+    {
+      "src": "/api/user-models/(.*)",
+      "dest": "/api/user_models.py"
+    },
+    {
+      "src": "/api/user-models",
+      "dest": "/api/user_models.py"
+    },
+    {
+      "src": "/api/logs",
+      "dest": "/api/logs.py"
+    },
+    {
       "src": "/(.*\\.(js|css|ico|png|jpg|svg|html))",
       "dest": "/public/$1"
     },
@@ -39,5 +79,12 @@
       "src": "/(.*)",
       "dest": "/public/index.html"
     }
-  ]
+  ],
+  "env": {
+    "PGHOST": "@pghost",
+    "PGDATABASE": "@pgdatabase",
+    "PGUSER": "@pguser",
+    "PGPASSWORD": "@pgpassword",
+    "PGSSLMODE": "require"
+  }
 }
