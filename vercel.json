@@ -79,12 +79,5 @@
       "src": "/(.*)",
       "dest": "/public/index.html"
     }
-  ],
-  "env": {
-    "PGHOST": "@pghost",
-    "PGDATABASE": "@pgdatabase",
-    "PGUSER": "@pguser",
-    "PGPASSWORD": "@pgpassword",
-    "PGSSLMODE": "require"
-  }
+  ]
 }
