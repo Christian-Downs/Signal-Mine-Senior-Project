@@ -32,6 +32,8 @@ body {
 
 body {
     display: flex;
+    background: var(--bg-dark) !important;
+    color: var(--text-primary) !important;
 }
 
 /* Sidebar */
@@ -151,12 +153,14 @@ body {
     display: flex;
     flex-direction: column;
     height: 100vh;
+    background: var(--bg-dark);
 }
 
 .chat-container {
     flex: 1;
     overflow-y: auto;
     padding: 20px 0;
+    background: var(--bg-dark);
 }
 
 .messages {
@@ -440,4 +444,400 @@ body {
 .katex-display {
     margin: 16px 0;
     overflow-x: auto;
+}
+
+/* User Section */
+.user-section {
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.user-info #username-display {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.auth-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Small buttons */
+.btn-small {
+    padding: 6px 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-small:hover {
+    background: var(--border);
+}
+
+/* Chat History */
+.chat-history-list {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 8px;
+}
+
+#chat-history-section .btn-small {
+    width: 100%;
+}
+
+.chat-history-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.chat-history-item:hover {
+    background: var(--bg-input);
+}
+
+.chat-history-item .chat-name {
+    font-size: 12px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.chat-history-item .btn-delete-chat {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.chat-history-item:hover .btn-delete-chat {
+    opacity: 1;
+}
+
+.chat-history-item .btn-delete-chat:hover {
+    color: var(--error);
+}
+
+/* Custom Models */
+.custom-models-list {
+    margin-bottom: 8px;
+}
+
+#custom-models-section .btn-small {
+    width: 100%;
+}
+
+.custom-model-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    background: var(--bg-input);
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+.custom-model-item .model-name {
+    color: var(--text-primary);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.custom-model-item .model-provider {
+    color: var(--text-muted);
+    font-size: 10px;
+    text-transform: uppercase;
+}
+
+.custom-model-item .btn-delete-model {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.custom-model-item:hover .btn-delete-model {
+    opacity: 1;
+}
+
+.custom-model-item .btn-delete-model:hover {
+    color: var(--error);
+}
+
+/* ===========================================
+   Bootstrap Overrides & Dark Theme Fixes
+   =========================================== */
+
+/* Reset Bootstrap colors to match our theme */
+.modal-content.bg-dark {
+    background-color: var(--bg-sidebar) !important;
+    border: 1px solid var(--border) !important;
+}
+
+.modal-header.border-secondary,
+.modal-footer.border-secondary {
+    border-color: var(--border) !important;
+}
+
+/* Form controls dark theme */
+.form-control,
+.form-select {
+    background-color: var(--bg-input) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-primary) !important;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-control:focus,
+.form-select:focus {
+    background-color: var(--bg-input) !important;
+    border-color: var(--accent) !important;
+    color: var(--text-primary) !important;
+    box-shadow: 0 0 0 2px rgba(16, 163, 127, 0.2) !important;
+    outline: none !important;
+}
+
+.form-control::placeholder {
+    color: var(--text-muted) !important;
+}
+
+.form-control.bg-secondary,
+.form-select.bg-secondary {
+    background-color: var(--bg-input) !important;
+}
+
+.form-label {
+    color: var(--text-secondary) !important;
+    font-size: 13px;
+    margin-bottom: 6px;
+}
+
+/* Button overrides */
+.btn-success {
+    background-color: var(--accent) !important;
+    border-color: var(--accent) !important;
+}
+
+.btn-success:hover {
+    background-color: var(--accent-hover) !important;
+    border-color: var(--accent-hover) !important;
+}
+
+.btn-secondary {
+    background-color: var(--bg-input) !important;
+    border-color: var(--border) !important;
+    color: var(--text-primary) !important;
+}
+
+.btn-secondary:hover {
+    background-color: var(--border) !important;
+}
+
+/* Alert styles */
+.alert-danger {
+    background-color: rgba(239, 68, 68, 0.15) !important;
+    border-color: var(--error) !important;
+    color: var(--error) !important;
+}
+
+/* Table styles */
+.table-dark {
+    --bs-table-bg: transparent !important;
+    --bs-table-striped-bg: var(--bg-input) !important;
+    --bs-table-border-color: var(--border) !important;
+    color: var(--text-primary) !important;
+}
+
+.table-dark th {
+    color: var(--text-secondary) !important;
+    font-weight: 500;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.table-dark td {
+    color: var(--text-primary) !important;
+    font-size: 13px;
+    vertical-align: middle;
+}
+
+/* Fix Bootstrap modal scroll */
+.modal-body {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.7) !important;
+}
+
+/* Summary card in logs */
+#logsSummary {
+    background-color: var(--bg-input) !important;
+}
+
+#logsSummary strong {
+    color: var(--accent);
+    font-size: 18px;
+}
+
+#logsSummary small {
+    color: var(--text-muted);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-dark);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+/* Improve sidebar scrolling */
+.sidebar-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+/* Selection highlight */
+::selection {
+    background-color: var(--accent);
+    color: white;
+}
+
+/* Links */
+a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+}
+
+/* Code in messages - syntax highlight compatible */
+.message-text pre {
+    position: relative;
+}
+
+.message-text pre .copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 4px 8px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.message-text pre:hover .copy-btn {
+    opacity: 1;
+}
+
+.message-text pre .copy-btn:hover {
+    background: var(--border);
+    color: var(--text-primary);
+}
+
+/* Focus outline for accessibility */
+*:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* Disable focus outline for mouse users */
+*:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/* Loading state for buttons */
+.btn-loading {
+    position: relative;
+    pointer-events: none;
+}
+
+.btn-loading::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    top: 50%;
+    left: 50%;
+    margin: -8px 0 0 -8px;
+    border: 2px solid transparent;
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Chat history active state */
+.chat-history-item.active {
+    background: var(--bg-input);
+    border-color: var(--accent);
+}
+
+/* Empty state text */
+.empty-state {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-muted);
+    font-size: 13px;
 }
