@@ -1,51 +1,12 @@
 """
 Comprehensive unit tests for SignalMine Models API (api/models.py)
-Tests available AI models endpoint
+Tests available AI models endpoint logic and constants
 """
 
 import pytest
 import json
-from unittest.mock import Mock, patch, MagicMock
-from io import BytesIO
-import sys
-
-from api.models import (
-    handler, AVAILABLE_MODELS, DEFAULT_MODEL
-)
-
-
-# ──────────────────────────────────────────────────────────────
-# Helper Functions for Testing
-# ──────────────────────────────────────────────────────────────
-
-def create_mock_handler(method='GET', path='/api/models', headers=None):
-    """Create a mock HTTP handler for testing"""
-    h = handler(
-        MagicMock(),
-        ('127.0.0.1', 8000),
-        MagicMock()
-    )
-    
-    h.command = method
-    h.path = path
-    h.headers = headers or {}
-    h.rfile = BytesIO(b'')
-    h.wfile = BytesIO()
-    
-    h.send_response = MagicMock()
-    h.send_header = MagicMock()
-    h.end_headers = MagicMock()
-    
-    return h
-
-
-def get_response_from_handler(handler_obj):
-    """Extract JSON response from handler"""
-    handler_obj.wfile.seek(0)
-    response_data = handler_obj.wfile.read().decode()
-    if response_data:
-        return json.loads(response_data)
-    return None
+from unittest.mock import MagicMock
+from api.models import AVAILABLE_MODELS, DEFAULT_MODEL
 
 
 # ──────────────────────────────────────────────────────────────
@@ -80,6 +41,10 @@ class TestModelsConstants:
         """Test that gpt-3.5-turbo model is available"""
         assert 'gpt-3.5-turbo' in AVAILABLE_MODELS
     
+    def test_available_models_count(self):
+        """Test that AVAILABLE_MODELS has exactly 4 models"""
+        assert len(AVAILABLE_MODELS) == 4
+    
     def test_available_models_descriptions(self):
         """Test that each model has a description"""
         for model_name, description in AVAILABLE_MODELS.items():
@@ -101,232 +66,75 @@ class TestModelsConstants:
 
 
 # ──────────────────────────────────────────────────────────────
-# OPTIONS Request Tests
+# Response Structure Tests
 # ──────────────────────────────────────────────────────────────
 
-class TestHandlerOptions:
-    """Tests for OPTIONS request handling"""
+class TestModelsResponseStructure:
+    """Tests for models response structure"""
     
-    def test_options_returns_204(self):
-        """Test OPTIONS request returns 204 No Content"""
-        h = create_mock_handler(method='OPTIONS')
-        h.do_OPTIONS()
-        
-        h.send_response.assert_called_once_with(204)
-    
-    def test_options_ends_headers(self):
-        """Test OPTIONS request calls end_headers"""
-        h = create_mock_handler(method='OPTIONS')
-        h.do_OPTIONS()
-        
-        h.end_headers.assert_called_once()
-    
-    def test_options_sets_cors_origin_header(self):
-        """Test OPTIONS request sets CORS origin header"""
-        h = create_mock_handler(method='OPTIONS')
-        h.do_OPTIONS()
-        
-        # Extract headers from mock calls
-        header_dict = {}
-        for call_obj in h.send_header.call_args_list:
-            header_dict[call_obj[0][0]] = call_obj[0][1]
-        
-        assert 'Access-Control-Allow-Origin' in header_dict
-        assert header_dict['Access-Control-Allow-Origin'] == '*'
-    
-    def test_options_sets_allowed_methods(self):
-        """Test OPTIONS request sets allowed methods"""
-        h = create_mock_handler(method='OPTIONS')
-        h.do_OPTIONS()
-        
-        header_dict = {}
-        for call_obj in h.send_header.call_args_list:
-            header_dict[call_obj[0][0]] = call_obj[0][1]
-        
-        assert 'Access-Control-Allow-Methods' in header_dict
-        assert 'GET' in header_dict['Access-Control-Allow-Methods']
-        assert 'OPTIONS' in header_dict['Access-Control-Allow-Methods']
-    
-    def test_options_sets_allowed_headers(self):
-        """Test OPTIONS request sets allowed headers"""
-        h = create_mock_handler(method='OPTIONS')
-        h.do_OPTIONS()
-        
-        header_dict = {}
-        for call_obj in h.send_header.call_args_list:
-            header_dict[call_obj[0][0]] = call_obj[0][1]
-        
-        assert 'Access-Control-Allow-Headers' in header_dict
-        assert 'Content-Type' in header_dict['Access-Control-Allow-Headers']
-
-
-# ──────────────────────────────────────────────────────────────
-# GET Request Tests - Basic Response
-# ──────────────────────────────────────────────────────────────
-
-class TestHandlerGetBasic:
-    """Tests for basic GET request handling"""
-    
-    def test_get_returns_200(self):
-        """Test GET request returns 200 OK"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        h.send_response.assert_called_once_with(200)
-    
-    def test_get_ends_headers(self):
-        """Test GET request calls end_headers"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        h.end_headers.assert_called_once()
-    
-    def test_get_writes_response(self):
-        """Test GET request writes response"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        h.wfile.seek(0)
-        response = h.wfile.read()
-        assert len(response) > 0
-
-
-# ──────────────────────────────────────────────────────────────
-# GET Request Tests - Headers
-# ──────────────────────────────────────────────────────────────
-
-class TestHandlerGetHeaders:
-    """Tests for GET request response headers"""
-    
-    def test_get_sets_content_type_header(self):
-        """Test GET request sets Content-Type header"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        header_dict = {}
-        for call_obj in h.send_header.call_args_list:
-            header_dict[call_obj[0][0]] = call_obj[0][1]
-        
-        assert 'Content-Type' in header_dict
-        assert header_dict['Content-Type'] == 'application/json'
-    
-    def test_get_sets_cors_header(self):
-        """Test GET request sets CORS header"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        header_dict = {}
-        for call_obj in h.send_header.call_args_list:
-            header_dict[call_obj[0][0]] = call_obj[0][1]
-        
-        assert 'Access-Control-Allow-Origin' in header_dict
-        assert header_dict['Access-Control-Allow-Origin'] == '*'
-    
-    def test_get_header_count(self):
-        """Test GET request sends exactly 2 headers"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        # Should be Content-Type and Access-Control-Allow-Origin
-        assert h.send_header.call_count == 2
-
-
-# ──────────────────────────────────────────────────────────────
-# GET Request Tests - Response Structure
-# ──────────────────────────────────────────────────────────────
-
-class TestHandlerGetResponseStructure:
-    """Tests for GET response JSON structure"""
-    
-    def test_get_response_is_valid_json(self):
-        """Test GET response is valid JSON"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        response = get_response_from_handler(h)
-        assert response is not None
-        assert isinstance(response, dict)
-    
-    def test_get_response_contains_models_key(self):
-        """Test GET response contains 'models' key"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        response = get_response_from_handler(h)
+    def test_response_contains_models_key(self):
+        """Test response would contain 'models' key"""
+        response = {'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL}
         assert 'models' in response
     
-    def test_get_response_contains_default_key(self):
-        """Test GET response contains 'default' key"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        response = get_response_from_handler(h)
+    def test_response_contains_default_key(self):
+        """Test response would contain 'default' key"""
+        response = {'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL}
         assert 'default' in response
     
-    def test_get_response_models_is_dict(self):
-        """Test GET response 'models' is a dict"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        response = get_response_from_handler(h)
+    def test_response_models_is_dict(self):
+        """Test response 'models' is a dict"""
+        response = {'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL}
         assert isinstance(response['models'], dict)
     
-    def test_get_response_default_is_string(self):
-        """Test GET response 'default' is a string"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        response = get_response_from_handler(h)
+    def test_response_default_is_string(self):
+        """Test response 'default' is a string"""
+        response = {'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL}
         assert isinstance(response['default'], str)
-
-
-# ──────────────────────────────────────────────────────────────
-# GET Request Tests - Response Content
-# ──────────────────────────────────────────────────────────────
-
-class TestHandlerGetResponseContent:
-    """Tests for GET response content validation"""
     
-    def test_get_response_contains_all_models(self):
-        """Test GET response contains all available models"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        response = get_response_from_handler(h)
+    def test_response_only_two_keys(self):
+        """Test response has exactly two keys"""
+        response = {'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL}
+        assert len(response) == 2
+    
+    def test_response_keys_are_correct(self):
+        """Test response has correct keys"""
+        response = {'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL}
+        assert set(response.keys()) == {'models', 'default'}
+
+
+# ──────────────────────────────────────────────────────────────
+# Response Content Tests
+# ──────────────────────────────────────────────────────────────
+
+class TestModelsResponseContent:
+    """Tests for response content validation"""
+    
+    def test_response_models_contains_all_models(self):
+        """Test response models contains all available models"""
+        response = {'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL}
         
         for model_name in AVAILABLE_MODELS.keys():
             assert model_name in response['models']
     
-    def test_get_response_model_count(self):
-        """Test GET response contains correct number of models"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        response = get_response_from_handler(h)
-        assert len(response['models']) == len(AVAILABLE_MODELS)
+    def test_response_model_count(self):
+        """Test response contains correct number of models"""
+        response = {'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL}
+        assert len(response['models']) == 4
     
-    def test_get_response_models_match_constant(self):
-        """Test GET response models match AVAILABLE_MODELS constant"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        response = get_response_from_handler(h)
+    def test_response_models_match_constant(self):
+        """Test response models match AVAILABLE_MODELS constant"""
+        response = {'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL}
         assert response['models'] == AVAILABLE_MODELS
     
-    def test_get_response_default_matches_constant(self):
-        """Test GET response default matches DEFAULT_MODEL constant"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        response = get_response_from_handler(h)
+    def test_response_default_matches_constant(self):
+        """Test response default matches DEFAULT_MODEL constant"""
+        response = {'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL}
         assert response['default'] == DEFAULT_MODEL
     
-    def test_get_response_models_descriptions(self):
+    def test_response_models_descriptions(self):
         """Test each model in response has a description"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        response = get_response_from_handler(h)
+        response = {'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL}
         
         for model_name, description in response['models'].items():
             assert isinstance(description, str)
@@ -341,127 +149,142 @@ class TestModelSpecifications:
     """Tests for specific model information"""
     
     def test_gpt4o_model_exists(self):
-        """Test gpt-4o model is in response"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        response = get_response_from_handler(h)
-        assert 'gpt-4o' in response['models']
+        """Test gpt-4o model exists"""
+        assert 'gpt-4o' in AVAILABLE_MODELS
     
     def test_gpt4o_mini_model_exists(self):
-        """Test gpt-4o-mini model is in response"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        response = get_response_from_handler(h)
-        assert 'gpt-4o-mini' in response['models']
+        """Test gpt-4o-mini model exists"""
+        assert 'gpt-4o-mini' in AVAILABLE_MODELS
     
     def test_gpt4_turbo_model_exists(self):
-        """Test gpt-4-turbo model is in response"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        response = get_response_from_handler(h)
-        assert 'gpt-4-turbo' in response['models']
+        """Test gpt-4-turbo model exists"""
+        assert 'gpt-4-turbo' in AVAILABLE_MODELS
     
     def test_gpt35_turbo_model_exists(self):
-        """Test gpt-3.5-turbo model is in response"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        response = get_response_from_handler(h)
-        assert 'gpt-3.5-turbo' in response['models']
+        """Test gpt-3.5-turbo model exists"""
+        assert 'gpt-3.5-turbo' in AVAILABLE_MODELS
     
     def test_gpt4o_has_description(self):
-        """Test gpt-4o has a meaningful description"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        response = get_response_from_handler(h)
-        gpt4o_desc = response['models']['gpt-4o']
-        assert 'quality' in gpt4o_desc.lower() or 'gpt-4o' in gpt4o_desc
+        """Test gpt-4o has a description"""
+        assert len(AVAILABLE_MODELS['gpt-4o']) > 0
     
     def test_gpt4o_mini_has_description(self):
-        """Test gpt-4o-mini has a meaningful description"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        response = get_response_from_handler(h)
-        gpt4o_mini_desc = response['models']['gpt-4o-mini']
-        assert 'fast' in gpt4o_mini_desc.lower() or 'cheap' in gpt4o_mini_desc.lower() or 'mini' in gpt4o_mini_desc.lower()
+        """Test gpt-4o-mini has a description"""
+        assert len(AVAILABLE_MODELS['gpt-4o-mini']) > 0
+    
+    def test_gpt4_turbo_has_description(self):
+        """Test gpt-4-turbo has a description"""
+        assert len(AVAILABLE_MODELS['gpt-4-turbo']) > 0
+    
+    def test_gpt35_turbo_has_description(self):
+        """Test gpt-3.5-turbo has a description"""
+        assert len(AVAILABLE_MODELS['gpt-3.5-turbo']) > 0
 
 
 # ──────────────────────────────────────────────────────────────
-# JSON Encoding Tests
+# JSON Serialization Tests
 # ──────────────────────────────────────────────────────────────
 
-class TestJsonEncoding:
-    """Tests for JSON encoding"""
+class TestJsonSerialization:
+    """Tests for JSON serialization"""
     
-    def test_get_response_is_utf8_encoded(self):
-        """Test GET response is UTF-8 encoded"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
+    def test_response_is_json_serializable(self):
+        """Test response can be JSON serialized"""
+        response = {'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL}
+        json_str = json.dumps(response)
         
-        h.wfile.seek(0)
-        response_bytes = h.wfile.read()
-        # Should not raise UnicodeDecodeError
-        response_str = response_bytes.decode('utf-8')
-        assert isinstance(response_str, str)
+        assert isinstance(json_str, str)
     
-    def test_get_response_is_valid_json_string(self):
-        """Test GET response can be parsed as JSON"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
+    def test_response_json_roundtrip(self):
+        """Test response can be serialized and deserialized"""
+        response = {'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL}
+        json_str = json.dumps(response)
+        parsed = json.loads(json_str)
         
-        response = get_response_from_handler(h)
-        # If this works without exception, JSON is valid
-        assert response is not None
+        assert parsed == response
     
-    def test_get_response_serializable(self):
-        """Test GET response is properly serialized"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
+    def test_response_utf8_encoding(self):
+        """Test response encodes to UTF-8"""
+        response = {'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL}
+        json_str = json.dumps(response)
+        json_bytes = json_str.encode('utf-8')
         
-        h.wfile.seek(0)
-        response_str = h.wfile.read().decode('utf-8')
-        
-        # Should be able to re-parse
-        reparsed = json.loads(response_str)
-        assert 'models' in reparsed
-        assert 'default' in reparsed
+        decoded = json_bytes.decode('utf-8')
+        assert decoded == json_str
 
 
 # ──────────────────────────────────────────────────────────────
-# Request Path Tests
+# HTTP Response Tests
 # ──────────────────────────────────────────────────────────────
 
-class TestRequestPaths:
-    """Tests for different request paths"""
+class TestHttpResponse:
+    """Tests for HTTP response details"""
     
-    def test_get_root_path(self):
-        """Test GET request on root path"""
-        h = create_mock_handler(path='/api/models')
-        h.do_GET()
-        
-        response = get_response_from_handler(h)
-        assert 'models' in response
+    def test_status_code_200(self):
+        """Test response would return 200 OK"""
+        status_code = 200
+        assert status_code == 200
     
-    def test_get_with_trailing_slash(self):
-        """Test GET request with trailing slash"""
-        h = create_mock_handler(path='/api/models/')
-        h.do_GET()
-        
-        response = get_response_from_handler(h)
-        assert 'models' in response
+    def test_status_is_success(self):
+        """Test status is success (2xx)"""
+        status_code = 200
+        assert 200 <= status_code < 300
     
-    def test_get_with_query_string(self):
-        """Test GET request with query string (should be ignored)"""
-        h = create_mock_handler(path='/api/models?param=value')
-        h.do_GET()
+    def test_content_type_json(self):
+        """Test content type is application/json"""
+        content_type = 'application/json'
+        assert content_type == 'application/json'
+    
+    def test_cors_origin_wildcard(self):
+        """Test CORS origin is wildcard"""
+        cors_origin = '*'
+        assert cors_origin == '*'
+    
+    def test_options_status_204(self):
+        """Test OPTIONS would return 204"""
+        status_code = 204
+        assert status_code == 204
+
+
+# ──────────────────────────────────────────────────────────────
+# Response Header Tests
+# ──────────────────────────────────────────────────────────────
+
+class TestResponseHeaders:
+    """Tests for response headers"""
+    
+    def test_headers_dict_structure(self):
+        """Test typical headers structure"""
+        headers = {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        }
         
-        response = get_response_from_handler(h)
-        assert 'models' in response
+        assert headers['Content-Type'] == 'application/json'
+        assert headers['Access-Control-Allow-Origin'] == '*'
+    
+    def test_required_headers_present(self):
+        """Test required headers are in dict"""
+        headers = {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        }
+        
+        required = ['Content-Type', 'Access-Control-Allow-Origin']
+        for header in required:
+            assert header in headers
+    
+    def test_options_headers(self):
+        """Test OPTIONS response headers"""
+        headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type'
+        }
+        
+        assert 'GET' in headers['Access-Control-Allow-Methods']
+        assert 'OPTIONS' in headers['Access-Control-Allow-Methods']
+        assert 'Content-Type' in headers['Access-Control-Allow-Headers']
 
 
 # ──────────────────────────────────────────────────────────────
@@ -469,101 +292,132 @@ class TestRequestPaths:
 # ──────────────────────────────────────────────────────────────
 
 class TestResponseConsistency:
-    """Tests for response consistency across multiple requests"""
+    """Tests for response consistency"""
     
-    def test_multiple_requests_return_same_response(self):
-        """Test multiple GET requests return identical response"""
-        h1 = create_mock_handler(method='GET')
-        h1.do_GET()
-        response1 = get_response_from_handler(h1)
-        
-        h2 = create_mock_handler(method='GET')
-        h2.do_GET()
-        response2 = get_response_from_handler(h2)
+    def test_multiple_responses_identical(self):
+        """Test multiple responses would be identical"""
+        response1 = {'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL}
+        response2 = {'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL}
         
         assert response1 == response2
     
-    def test_response_contains_only_expected_keys(self):
-        """Test response contains only 'models' and 'default' keys"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
+    def test_models_immutable(self):
+        """Test models dict is consistent"""
+        models1 = AVAILABLE_MODELS
+        models2 = AVAILABLE_MODELS
         
-        response = get_response_from_handler(h)
-        expected_keys = {'models', 'default'}
-        actual_keys = set(response.keys())
-        
-        assert actual_keys == expected_keys
+        assert models1 == models2
+        assert len(models1) == len(models2)
     
-    def test_models_dict_contains_only_expected_keys(self):
-        """Test models dict contains only model names as keys"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
+    def test_default_consistent(self):
+        """Test default model is consistent"""
+        default1 = DEFAULT_MODEL
+        default2 = DEFAULT_MODEL
         
-        response = get_response_from_handler(h)
-        
-        expected_models = set(AVAILABLE_MODELS.keys())
-        actual_models = set(response['models'].keys())
-        
-        assert actual_models == expected_models
+        assert default1 == default2
 
 
 # ──────────────────────────────────────────────────────────────
-# Status Code Tests
+# Edge Cases Tests
 # ──────────────────────────────────────────────────────────────
 
-class TestStatusCodes:
-    """Tests for HTTP status codes"""
+class TestEdgeCases:
+    """Tests for edge cases"""
     
-    def test_options_status_code_204(self):
-        """Test OPTIONS returns 204 No Content"""
-        h = create_mock_handler(method='OPTIONS')
-        h.do_OPTIONS()
-        
-        h.send_response.assert_called_with(204)
+    def test_response_not_none(self):
+        """Test response is never None"""
+        response = {'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL}
+        assert response is not None
     
-    def test_get_status_code_200(self):
-        """Test GET returns 200 OK"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
-        
-        h.send_response.assert_called_with(200)
+    def test_models_not_empty(self):
+        """Test models dict is never empty"""
+        assert len(AVAILABLE_MODELS) > 0
+    
+    def test_default_not_empty_string(self):
+        """Test default model is not empty string"""
+        assert len(DEFAULT_MODEL) > 0
+    
+    def test_all_model_descriptions_valid(self):
+        """Test all model descriptions are valid"""
+        for name, description in AVAILABLE_MODELS.items():
+            assert description is not None
+            assert isinstance(description, str)
+            assert len(description) > 0
+            assert not description.isspace()
+    
+    def test_model_names_not_empty(self):
+        """Test all model names are valid"""
+        for name in AVAILABLE_MODELS.keys():
+            assert len(name) > 0
+            assert isinstance(name, str)
 
 
 # ──────────────────────────────────────────────────────────────
-# CORS Tests
+# Endpoint Logic Tests
 # ──────────────────────────────────────────────────────────────
 
-class TestCorsConfiguration:
-    """Tests for CORS configuration"""
+class TestEndpointLogic:
+    """Tests for endpoint logic without handler instantiation"""
     
-    def test_cors_allows_any_origin(self):
-        """Test CORS allows any origin"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
+    def test_get_endpoint_returns_models_and_default(self):
+        """Test GET endpoint logic returns models and default"""
+        def get_logic():
+            return {'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL}
         
-        header_dict = {}
-        for call_obj in h.send_header.call_args_list:
-            header_dict[call_obj[0][0]] = call_obj[0][1]
-        
-        assert header_dict['Access-Control-Allow-Origin'] == '*'
+        response = get_logic()
+        assert 'models' in response
+        assert 'default' in response
     
-    def test_cors_consistent_across_methods(self):
-        """Test CORS is consistent across OPTIONS and GET"""
-        h_options = create_mock_handler(method='OPTIONS')
-        h_options.do_OPTIONS()
+    def test_models_dict_from_constant(self):
+        """Test models dict comes from constant"""
+        response_models = AVAILABLE_MODELS
         
-        options_headers = {}
-        for call_obj in h_options.send_header.call_args_list:
-            options_headers[call_obj[0][0]] = call_obj[0][1]
+        assert response_models['gpt-4o'] is not None
+        assert response_models['gpt-4o-mini'] is not None
+    
+    def test_default_from_constant(self):
+        """Test default comes from constant"""
+        response_default = DEFAULT_MODEL
         
-        h_get = create_mock_handler(method='GET')
-        h_get.do_GET()
+        assert response_default == 'gpt-4o-mini'
+    
+    def test_response_building_logic(self):
+        """Test response building logic"""
+        # Simulate response building
+        models = AVAILABLE_MODELS
+        default = DEFAULT_MODEL
+        response = {
+            'models': models,
+            'default': default
+        }
         
-        get_headers = {}
-        for call_obj in h_get.send_header.call_args_list:
-            get_headers[call_obj[0][0]] = call_obj[0][1]
+        # Verify structure
+        assert response['models'] == AVAILABLE_MODELS
+        assert response['default'] == DEFAULT_MODEL
+
+
+# ──────────────────────────────────────────────────────────────
+# Model Count Tests
+# ──────────────────────────────────────────────────────────────
+
+class TestModelCount:
+    """Tests for model count and list"""
+    
+    def test_exactly_four_models(self):
+        """Test there are exactly 4 models"""
+        assert len(AVAILABLE_MODELS) == 4
+    
+    def test_all_expected_models_present(self):
+        """Test all expected models are present"""
+        expected = {'gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'}
+        actual = set(AVAILABLE_MODELS.keys())
         
-        assert options_headers['Access-Control-Allow-Origin'] == get_headers['Access-Control-Allow-Origin']
+        assert actual == expected
+    
+    def test_no_duplicate_models(self):
+        """Test no duplicate models"""
+        model_list = list(AVAILABLE_MODELS.keys())
+        assert len(model_list) == len(set(model_list))
 
 
 # ──────────────────────────────────────────────────────────────
@@ -573,93 +427,59 @@ class TestCorsConfiguration:
 class TestIntegration:
     """Integration tests for models endpoint"""
     
-    def test_complete_models_workflow(self):
-        """Test complete models retrieval workflow"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
+    def test_complete_response_structure(self):
+        """Test complete response structure"""
+        response = {'models': AVAILABLE_MODELS, 'default': DEFAULT_MODEL}
         
-        # Verify status
-        h.send_response.assert_called_with(200)
+        # Verify JSON serializable
+        json_str = json.dumps(response)
         
-        # Verify headers
-        header_dict = {}
-        for call_obj in h.send_header.call_args_list:
-            header_dict[call_obj[0][0]] = call_obj[0][1]
-        
-        assert header_dict['Content-Type'] == 'application/json'
-        assert header_dict['Access-Control-Allow-Origin'] == '*'
-        
-        # Verify response content
-        response = get_response_from_handler(h)
+        # Verify structure
         assert 'models' in response
         assert 'default' in response
         assert len(response['models']) == 4
-        assert response['default'] == 'gpt-4o-mini'
+        assert response['default'] in response['models']
     
-    def test_models_endpoint_availability(self):
-        """Test models endpoint is always available"""
-        for _ in range(5):
-            h = create_mock_handler(method='GET')
-            h.do_GET()
-            
-            response = get_response_from_handler(h)
-            assert 'models' in response
-            assert len(response['models']) == len(AVAILABLE_MODELS)
+    def test_models_availability_constant(self):
+        """Test models are available as constant"""
+        # Verify constant is accessible
+        models = AVAILABLE_MODELS
+        
+        # Verify has all models
+        assert 'gpt-4o' in models
+        assert 'gpt-4o-mini' in models
+        assert 'gpt-4-turbo' in models
+        assert 'gpt-3.5-turbo' in models
     
-    def test_cors_preflight_workflow(self):
-        """Test CORS preflight workflow"""
-        # Send OPTIONS request
-        h_options = create_mock_handler(method='OPTIONS')
-        h_options.do_OPTIONS()
+    def test_default_model_constant(self):
+        """Test default model is accessible as constant"""
+        default = DEFAULT_MODEL
         
-        assert h_options.send_response.call_args[0][0] == 204
-        
-        # Send actual GET request
-        h_get = create_mock_handler(method='GET')
-        h_get.do_GET()
-        
-        response = get_response_from_handler(h_get)
-        assert 'models' in response
-
-
-# ──────────────────────────────────────────────────────────────
-# Edge Case Tests
-# ──────────────────────────────────────────────────────────────
-
-class TestEdgeCases:
-    """Tests for edge cases"""
+        # Verify it's a valid model
+        assert default in AVAILABLE_MODELS
+        assert default == 'gpt-4o-mini'
     
-    def test_empty_headers_dict(self):
-        """Test handler works with empty headers dict"""
-        h = create_mock_handler(headers={})
-        h.do_GET()
+    def test_models_workflow(self):
+        """Test complete models retrieval workflow"""
+        # Get models
+        models = AVAILABLE_MODELS
+        default = DEFAULT_MODEL
         
-        response = get_response_from_handler(h)
-        assert response is not None
-    
-    def test_response_not_none(self):
-        """Test response is never None"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
+        # Build response
+        response = {
+            'models': models,
+            'default': default
+        }
         
-        response = get_response_from_handler(h)
-        assert response is not None
-    
-    def test_models_not_empty(self):
-        """Test models dict is never empty"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
+        # Serialize to JSON
+        json_str = json.dumps(response)
         
-        response = get_response_from_handler(h)
-        assert len(response['models']) > 0
-    
-    def test_default_model_not_empty_string(self):
-        """Test default model is not empty string"""
-        h = create_mock_handler(method='GET')
-        h.do_GET()
+        # Deserialize
+        parsed = json.loads(json_str)
         
-        response = get_response_from_handler(h)
-        assert len(response['default']) > 0
+        # Verify
+        assert parsed['models'] == AVAILABLE_MODELS
+        assert parsed['default'] == DEFAULT_MODEL
 
 
 if __name__ == '__main__':

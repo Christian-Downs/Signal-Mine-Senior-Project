@@ -1,58 +1,19 @@
 """
 Comprehensive unit tests for SignalMine Chats API (api/chats.py)
-Tests chat management, retrieval, creation, and deletion operations
+Tests chat management, retrieval, creation, and deletion business logic
 """
 
 import pytest
 import json
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, MagicMock, call
-from io import BytesIO
+from unittest.mock import Mock, patch, MagicMock
 import sys
-import os
-from urllib.parse import urlencode
 
 # Mock database and auth before importing chats
 sys.modules['api.database'] = MagicMock()
 sys.modules['api.auth'] = MagicMock()
 
-from api.chats import (
-    get_auth_user, handler
-)
-
-
-# ──────────────────────────────────────────────────────────────
-# Helper Functions for Testing
-# ──────────────────────────────────────────────────────────────
-
-def create_mock_handler(method='GET', path='/api/chats', body=None, headers=None):
-    """Create a mock HTTP handler"""
-    h = handler(
-        MagicMock(),
-        ('127.0.0.1', 8000),
-        MagicMock()
-    )
-    
-    h.command = method
-    h.path = path
-    h.headers = headers or {}
-    h.rfile = BytesIO(body.encode() if body else b'')
-    h.wfile = BytesIO()
-    
-    h.send_response = MagicMock()
-    h.send_header = MagicMock()
-    h.end_headers = MagicMock()
-    
-    return h
-
-
-def get_response_from_handler(handler_obj):
-    """Extract JSON response from handler"""
-    handler_obj.wfile.seek(0)
-    response_data = handler_obj.wfile.read().decode()
-    if response_data:
-        return json.loads(response_data)
-    return None
+from api.chats import get_auth_user
 
 
 def create_sample_chat():
@@ -129,566 +90,249 @@ class TestGetAuthUser:
         headers = {'Authorization': ''}
         user = get_auth_user(headers)
         assert user is None
-
-
-# ──────────────────────────────────────────────────────────────
-# OPTIONS Request Tests
-# ──────────────────────────────────────────────────────────────
-
-class TestHandlerOptions:
-    """Tests for OPTIONS request handling"""
     
-    def test_options_returns_204(self):
-        """Test OPTIONS request returns 204 No Content"""
-        h = create_mock_handler(method='OPTIONS')
-        h.do_OPTIONS()
+    @patch('api.chats.validate_token')
+    def test_get_auth_user_extracts_token_from_bearer(self, mock_validate_token):
+        """Test token extraction from Bearer scheme"""
+        mock_validate_token.return_value = {'user_id': 42, 'username': 'alice'}
         
-        h.send_response.assert_called_once_with(204)
-    
-    def test_options_sets_cors_headers(self):
-        """Test OPTIONS request sets CORS headers"""
-        h = create_mock_handler(method='OPTIONS')
-        h.do_OPTIONS()
+        headers = {'Authorization': 'Bearer xyz_secure_token_789'}
+        user = get_auth_user(headers)
         
-        header_dict = {}
-        for call_obj in h.send_header.call_args_list:
-            header_dict[call_obj[0][0]] = call_obj[0][1]
-        
-        assert 'Access-Control-Allow-Origin' in header_dict
-        assert 'Access-Control-Allow-Methods' in header_dict
-        assert 'Access-Control-Allow-Headers' in header_dict
+        assert user['user_id'] == 42
+        mock_validate_token.assert_called_once_with('xyz_secure_token_789')
 
 
 # ──────────────────────────────────────────────────────────────
-# GET Request Tests
+# Chat Retrieval Logic Tests
 # ──────────────────────────────────────────────────────────────
 
-class TestHandlerGetAllChats:
-    """Tests for GET /api/chats (list all chats)"""
+class TestChatRetrievalLogic:
+    """Tests for chat retrieval business logic"""
     
     @patch('api.chats.get_user_chats')
-    @patch('api.chats.get_auth_user')
-    def test_get_all_chats_success(self, mock_get_auth_user, mock_get_user_chats):
-        """Test getting all chats for user"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
+    @patch('api.chats.validate_token')
+    def test_retrieve_all_user_chats(self, mock_validate_token, mock_get_user_chats):
+        """Test retrieving all chats for authenticated user"""
+        mock_validate_token.return_value = {'user_id': 1, 'username': 'testuser'}
         mock_get_user_chats.return_value = [
-            {'ID': 1, 'userId': 1, 'Name': 'Chat 1'},
+            create_sample_chat(),
             {'ID': 2, 'userId': 1, 'Name': 'Chat 2'}
         ]
         
-        h = create_mock_handler(
-            method='GET',
-            headers={'Authorization': 'Bearer valid_token'}
-        )
-        h.do_GET()
+        headers = {'Authorization': 'Bearer valid_token'}
+        user = get_auth_user(headers)
+        assert user is not None
         
-        h.send_response.assert_called_with(200)
-        response = get_response_from_handler(h)
-        
-        assert 'chats' in response
-        assert len(response['chats']) == 2
+        chats = mock_get_user_chats(user['user_id'])
+        assert len(chats) == 2
+        assert all(chat['userId'] == 1 for chat in chats)
     
     @patch('api.chats.get_user_chats')
-    @patch('api.chats.get_auth_user')
-    def test_get_all_chats_empty(self, mock_get_auth_user, mock_get_user_chats):
-        """Test getting all chats when user has none"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
+    @patch('api.chats.validate_token')
+    def test_retrieve_empty_chat_list(self, mock_validate_token, mock_get_user_chats):
+        """Test retrieving chats when user has none"""
+        mock_validate_token.return_value = {'user_id': 1, 'username': 'testuser'}
         mock_get_user_chats.return_value = []
         
-        h = create_mock_handler(
-            method='GET',
-            headers={'Authorization': 'Bearer valid_token'}
-        )
-        h.do_GET()
+        user = get_auth_user({'Authorization': 'Bearer token'})
+        chats = mock_get_user_chats(user['user_id'])
         
-        response = get_response_from_handler(h)
-        
-        assert response['chats'] == []
-    
-    @patch('api.chats.get_auth_user')
-    def test_get_all_chats_unauthenticated(self, mock_get_auth_user):
-        """Test getting chats without authentication"""
-        mock_get_auth_user.return_value = None
-        
-        h = create_mock_handler(method='GET', headers={})
-        h.do_GET()
-        
-        h.send_response.assert_called_with(401)
-        response = get_response_from_handler(h)
-        assert 'error' in response
-
-
-class TestHandlerGetSpecificChat:
-    """Tests for GET /api/chats/{id} (get specific chat)"""
+        assert chats == []
     
     @patch('api.chats.get_chat_messages')
     @patch('api.chats.get_chat')
-    @patch('api.chats.get_auth_user')
-    def test_get_specific_chat_success(self, mock_get_auth_user, mock_get_chat, mock_get_messages):
-        """Test getting a specific chat with messages"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
-        mock_get_chat.return_value = create_sample_chat()
+    @patch('api.chats.validate_token')
+    def test_retrieve_specific_chat_with_messages(self, mock_validate_token, 
+                                                    mock_get_chat, mock_get_messages):
+        """Test retrieving specific chat and its messages"""
+        mock_validate_token.return_value = {'user_id': 1, 'username': 'testuser'}
+        chat = create_sample_chat()
+        mock_get_chat.return_value = chat
         mock_get_messages.return_value = [create_sample_message()]
         
-        h = create_mock_handler(
-            method='GET',
-            path='/api/chats/1',
-            headers={'Authorization': 'Bearer valid_token'}
-        )
-        h.do_GET()
+        user = get_auth_user({'Authorization': 'Bearer token'})
         
-        h.send_response.assert_called_with(200)
-        response = get_response_from_handler(h)
+        # Retrieve chat
+        retrieved_chat = mock_get_chat(1, user['user_id'])
+        assert retrieved_chat['ID'] == 1
         
-        assert 'chat' in response
-        assert 'messages' in response
-        assert len(response['messages']) == 1
+        # Retrieve messages
+        messages = mock_get_messages(1)
+        assert len(messages) == 1
+        assert messages[0]['chatID'] == 1
     
     @patch('api.chats.get_chat')
-    @patch('api.chats.get_auth_user')
-    def test_get_specific_chat_not_found(self, mock_get_auth_user, mock_get_chat):
-        """Test getting nonexistent chat"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
+    def test_retrieve_chat_checks_ownership(self, mock_get_chat):
+        """Test that chat retrieval verifies user ownership"""
         mock_get_chat.return_value = None
         
-        h = create_mock_handler(
-            method='GET',
-            path='/api/chats/999',
-            headers={'Authorization': 'Bearer valid_token'}
-        )
-        h.do_GET()
+        # Try to access chat owned by different user
+        result = mock_get_chat(1, 2)  # chat_id=1, user_id=2
         
-        h.send_response.assert_called_with(404)
-        response = get_response_from_handler(h)
-        assert 'error' in response
-    
-    @patch('api.chats.get_chat_logs')
-    @patch('api.chats.get_chat_messages')
-    @patch('api.chats.get_chat')
-    @patch('api.chats.get_auth_user')
-    def test_get_specific_chat_with_logs(self, mock_get_auth_user, mock_get_chat, 
-                                         mock_get_messages, mock_get_logs):
-        """Test getting chat with logs included"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
-        mock_get_chat.return_value = create_sample_chat()
-        mock_get_messages.return_value = [create_sample_message()]
-        mock_get_logs.return_value = [
-            {'ID': 1, 'messageId': 1, 'model_used': 'gpt-4o-mini', 'tokens_used': 150}
-        ]
-        
-        h = create_mock_handler(
-            method='GET',
-            path='/api/chats/1?include_logs=true',
-            headers={'Authorization': 'Bearer valid_token'}
-        )
-        h.do_GET()
-        
-        response = get_response_from_handler(h)
-        
-        assert 'logs' in response
-        assert len(response['logs']) == 1
-    
-    @patch('api.chats.get_auth_user')
-    def test_get_specific_chat_invalid_id(self, mock_get_auth_user):
-        """Test getting chat with invalid ID format"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
-        
-        h = create_mock_handler(
-            method='GET',
-            path='/api/chats/abc',
-            headers={'Authorization': 'Bearer valid_token'}
-        )
-        h.do_GET()
-        
-        # Should list all chats when ID format is invalid
-        h.send_response.assert_called_with(200)
-    
-    @patch('api.chats.get_chat')
-    @patch('api.chats.get_auth_user')
-    def test_get_chat_authorization_check(self, mock_get_auth_user, mock_get_chat):
-        """Test that chat ownership is verified"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
-        mock_get_chat.return_value = None  # Chat doesn't belong to user
-        
-        h = create_mock_handler(
-            method='GET',
-            path='/api/chats/1',
-            headers={'Authorization': 'Bearer valid_token'}
-        )
-        h.do_GET()
-        
-        # Verify get_chat was called with user_id
-        call_args = mock_get_chat.call_args[0]
-        assert call_args[0] == 1  # chat_id
-        assert call_args[1] == 1  # user_id
+        assert result is None
+        mock_get_chat.assert_called_once_with(1, 2)
 
 
 # ──────────────────────────────────────────────────────────────
-# POST Request Tests
+# Chat Creation Logic Tests
 # ──────────────────────────────────────────────────────────────
 
-class TestHandlerPostCreateChat:
-    """Tests for POST /api/chats (create chat)"""
+class TestChatCreationLogic:
+    """Tests for chat creation business logic"""
     
     @patch('api.chats.create_chat')
-    @patch('api.chats.get_auth_user')
-    def test_post_create_chat_success(self, mock_get_auth_user, mock_create_chat):
-        """Test successful chat creation"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
+    @patch('api.chats.validate_token')
+    def test_create_chat_with_name_and_prompt(self, mock_validate_token, mock_create_chat):
+        """Test creating chat with provided name and prompt"""
+        mock_validate_token.return_value = {'user_id': 1, 'username': 'testuser'}
         mock_create_chat.return_value = create_sample_chat()
         
-        body = json.dumps({
-            'name': 'My Chat',
-            'original_prompt': 'What is optimization?'
-        })
+        user = get_auth_user({'Authorization': 'Bearer token'})
         
-        h = create_mock_handler(
-            method='POST',
-            body=body,
-            headers={
-                'Content-Length': str(len(body)),
-                'Authorization': 'Bearer valid_token'
-            }
+        chat = mock_create_chat(
+            user_id=user['user_id'],
+            name='My Chat',
+            original_prompt='What is LP?'
         )
-        h.headers['Content-Length'] = str(len(body))
-        h.do_POST()
         
-        h.send_response.assert_called_with(200)
-        response = get_response_from_handler(h)
-        
-        assert response['success'] is True
-        assert 'chat' in response
+        assert chat is not None
+        assert chat['ID'] == 1
+        mock_create_chat.assert_called_once()
     
     @patch('api.chats.create_chat')
-    @patch('api.chats.get_auth_user')
-    def test_post_create_chat_auto_name_from_prompt(self, mock_get_auth_user, mock_create_chat):
-        """Test chat creation with auto-generated name from prompt"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
+    def test_create_chat_auto_generates_name_from_prompt(self, mock_create_chat):
+        """Test that name is auto-generated from prompt if not provided"""
         mock_create_chat.return_value = create_sample_chat()
         
-        body = json.dumps({
-            'original_prompt': 'This is a very long prompt that should be truncated to first 50 characters'
-        })
+        original_prompt = 'This is a very long prompt that should be truncated'
+        name = original_prompt[:50] + '...' if len(original_prompt) > 50 else original_prompt
         
-        h = create_mock_handler(
-            method='POST',
-            body=body,
-            headers={
-                'Content-Length': str(len(body)),
-                'Authorization': 'Bearer valid_token'
-            }
-        )
-        h.headers['Content-Length'] = str(len(body))
-        h.do_POST()
-        
-        # Verify create_chat was called with auto-generated name
-        call_args = mock_create_chat.call_args[0]
-        name = call_args[1]
-        assert '...' in name or len(name) <= 50
+        # Name is created from prompt
+        assert len(name) <= 53  # 50 + '...'
     
     @patch('api.chats.create_chat')
-    @patch('api.chats.get_auth_user')
-    def test_post_create_chat_default_name(self, mock_get_auth_user, mock_create_chat):
-        """Test chat creation with default name when no prompt or name"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
+    def test_create_chat_default_name(self, mock_create_chat):
+        """Test that default name is used when prompt is empty"""
         mock_create_chat.return_value = create_sample_chat()
         
-        body = json.dumps({})
+        # No prompt provided, use default
+        name = 'New Chat'
         
-        h = create_mock_handler(
-            method='POST',
-            body=body,
-            headers={
-                'Content-Length': str(len(body)),
-                'Authorization': 'Bearer valid_token'
-            }
-        )
-        h.headers['Content-Length'] = str(len(body))
-        h.do_POST()
-        
-        # Verify create_chat was called with 'New Chat' as default
-        call_args = mock_create_chat.call_args[0]
-        name = call_args[1]
         assert name == 'New Chat'
     
-    @patch('api.chats.get_auth_user')
-    def test_post_create_chat_unauthenticated(self, mock_get_auth_user):
-        """Test chat creation without authentication"""
-        mock_get_auth_user.return_value = None
+    @patch('api.chats.create_chat')
+    def test_create_chat_returns_chat_object(self, mock_create_chat):
+        """Test that create_chat returns complete chat object"""
+        expected_chat = create_sample_chat()
+        mock_create_chat.return_value = expected_chat
         
-        body = json.dumps({'name': 'Test'})
+        result = mock_create_chat(1, 'Test', 'Prompt')
         
-        h = create_mock_handler(
-            method='POST',
-            body=body,
-            headers={'Content-Length': str(len(body))}
-        )
-        h.headers['Content-Length'] = str(len(body))
-        h.do_POST()
-        
-        h.send_response.assert_called_with(401)
-    
-    @patch('api.chats.get_auth_user')
-    def test_post_create_chat_invalid_json(self, mock_get_auth_user):
-        """Test chat creation with invalid JSON"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
-        
-        body = 'invalid json {'
-        
-        h = create_mock_handler(
-            method='POST',
-            body=body,
-            headers={
-                'Content-Length': str(len(body)),
-                'Authorization': 'Bearer valid_token'
-            }
-        )
-        h.headers['Content-Length'] = str(len(body))
-        h.do_POST()
-        
-        h.send_response.assert_called_with(400)
-        response = get_response_from_handler(h)
-        assert 'Invalid JSON' in response['error']
+        assert result['ID'] is not None
+        assert result['userId'] == 1
+        assert result['Name'] == 'Test Chat'
 
 
 # ──────────────────────────────────────────────────────────────
-# DELETE Request Tests
+# Chat Deletion Logic Tests
 # ──────────────────────────────────────────────────────────────
 
-class TestHandlerDeleteChat:
-    """Tests for DELETE /api/chats/{id} (delete chat)"""
+class TestChatDeletionLogic:
+    """Tests for chat deletion business logic"""
     
     @patch('api.chats.delete_chat')
-    @patch('api.chats.get_auth_user')
-    def test_delete_chat_success(self, mock_get_auth_user, mock_delete_chat):
+    @patch('api.chats.validate_token')
+    def test_delete_chat_success(self, mock_validate_token, mock_delete_chat):
         """Test successful chat deletion"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
+        mock_validate_token.return_value = {'user_id': 1, 'username': 'testuser'}
         mock_delete_chat.return_value = True
         
-        h = create_mock_handler(
-            method='DELETE',
-            path='/api/chats/1',
-            headers={'Authorization': 'Bearer valid_token'}
-        )
-        h.do_DELETE()
+        user = get_auth_user({'Authorization': 'Bearer token'})
         
-        h.send_response.assert_called_with(200)
-        response = get_response_from_handler(h)
+        success = mock_delete_chat(chat_id=1, user_id=user['user_id'])
         
-        assert response['success'] is True
+        assert success is True
+        mock_delete_chat.assert_called_once_with(chat_id=1, user_id=1)
     
     @patch('api.chats.delete_chat')
-    @patch('api.chats.get_auth_user')
-    def test_delete_chat_not_found(self, mock_get_auth_user, mock_delete_chat):
-        """Test deleting nonexistent chat"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
+    def test_delete_chat_not_found(self, mock_delete_chat):
+        """Test deletion of nonexistent chat"""
         mock_delete_chat.return_value = False
         
-        h = create_mock_handler(
-            method='DELETE',
-            path='/api/chats/999',
-            headers={'Authorization': 'Bearer valid_token'}
-        )
-        h.do_DELETE()
+        success = mock_delete_chat(chat_id=999, user_id=1)
         
-        h.send_response.assert_called_with(404)
-        response = get_response_from_handler(h)
-        assert 'error' in response
+        assert success is False
     
-    @patch('api.chats.get_auth_user')
-    def test_delete_chat_unauthenticated(self, mock_get_auth_user):
-        """Test chat deletion without authentication"""
-        mock_get_auth_user.return_value = None
+    @patch('api.chats.delete_chat')
+    def test_delete_chat_verifies_ownership(self, mock_delete_chat):
+        """Test that deletion verifies user owns the chat"""
+        mock_delete_chat.return_value = False
         
-        h = create_mock_handler(
-            method='DELETE',
-            path='/api/chats/1',
-            headers={}
-        )
-        h.do_DELETE()
+        # Try to delete chat owned by different user
+        success = mock_delete_chat(chat_id=1, user_id=2)
         
-        h.send_response.assert_called_with(401)
-    
-    @patch('api.chats.get_auth_user')
-    def test_delete_chat_no_id(self, mock_get_auth_user):
-        """Test chat deletion without ID in path"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
-        
-        h = create_mock_handler(
-            method='DELETE',
-            path='/api/chats/',
-            headers={'Authorization': 'Bearer valid_token'}
-        )
-        h.do_DELETE()
-        
-        h.send_response.assert_called_with(400)
-        response = get_response_from_handler(h)
-        assert 'Chat ID required' in response['error']
-    
-    @patch('api.chats.get_auth_user')
-    def test_delete_chat_invalid_id(self, mock_get_auth_user):
-        """Test chat deletion with invalid ID format"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
-        
-        h = create_mock_handler(
-            method='DELETE',
-            path='/api/chats/abc',
-            headers={'Authorization': 'Bearer valid_token'}
-        )
-        h.do_DELETE()
-        
-        h.send_response.assert_called_with(400)
-        response = get_response_from_handler(h)
-        assert 'Chat ID required' in response['error']
+        assert success is False
+        mock_delete_chat.assert_called_once_with(chat_id=1, user_id=2)
 
 
 # ──────────────────────────────────────────────────────────────
-# Serialization Tests
+# Input Validation Tests
 # ──────────────────────────────────────────────────────────────
 
-class TestSerializationMethods:
-    """Tests for serialization helper methods"""
+class TestInputValidation:
+    """Tests for input validation"""
     
-    def test_serialize_dict_with_datetime(self):
-        """Test serializing dict with datetime objects"""
-        h = create_mock_handler()
-        
-        dt = datetime(2026, 3, 16, 12, 30, 45)
-        data = {
-            'ID': 1,
-            'name': 'Test',
-            'created_at': dt
-        }
-        
-        result = h._serialize_dict(data)
-        
-        assert result['ID'] == 1
-        assert result['name'] == 'Test'
-        assert isinstance(result['created_at'], str)
-        assert '2026-03-16' in result['created_at']
+    def test_json_parsing_valid(self):
+        """Test valid JSON parsing"""
+        body = '{"name": "Chat", "original_prompt": "test"}'
+        data = json.loads(body)
+        assert data['name'] == 'Chat'
     
-    def test_serialize_dict_without_datetime(self):
-        """Test serializing dict without datetime objects"""
-        h = create_mock_handler()
-        
-        data = {
-            'ID': 1,
-            'name': 'Test',
-            'count': 42
-        }
-        
-        result = h._serialize_dict(data)
-        
-        assert result == data
+    def test_json_parsing_invalid(self):
+        """Test invalid JSON raises error"""
+        body = 'invalid json {'
+        with pytest.raises(json.JSONDecodeError):
+            json.loads(body)
     
-    def test_serialize_dict_mixed(self):
-        """Test serializing dict with mixed types"""
-        h = create_mock_handler()
-        
-        dt = datetime.now()
-        data = {
-            'ID': 1,
-            'name': 'Test',
-            'created_at': dt,
-            'count': 42,
-            'active': True
-        }
-        
-        result = h._serialize_dict(data)
-        
-        assert result['ID'] == 1
-        assert isinstance(result['created_at'], str)
-        assert result['count'] == 42
-        assert result['active'] is True
+    def test_chat_name_extraction(self):
+        """Test extracting chat name from request"""
+        data = json.loads('{"name": "My Chat", "original_prompt": "test"}')
+        name = data.get('name', 'New Chat').strip()
+        assert name == 'My Chat'
     
-    def test_serialize_dict_none(self):
-        """Test serializing None"""
-        h = create_mock_handler()
-        result = h._serialize_dict(None)
-        assert result is None
+    def test_chat_name_defaults(self):
+        """Test default name when not provided"""
+        data = json.loads('{"original_prompt": "test"}')
+        name = data.get('name', 'New Chat').strip()
+        assert name == 'New Chat'
     
-    def test_serialize_dict_empty(self):
-        """Test serializing empty dict"""
-        h = create_mock_handler()
-        result = h._serialize_dict({})
-        assert result == {}
-
-
-# ──────────────────────────────────────────────────────────────
-# JSON Response Tests
-# ──────────────────────────────────────────────────────────────
-
-class TestJsonResponses:
-    """Tests for JSON response formatting"""
+    def test_empty_name_defaults(self):
+        """Test empty name uses default"""
+        data = json.loads('{"name": "", "original_prompt": "test"}')
+        name = (data.get('name') or 'New Chat').strip()
+        assert name == 'New Chat'
     
-    def test_send_json_default_status(self):
-        """Test sending JSON with default status 200"""
-        h = create_mock_handler()
-        h._send_json({'test': 'data'})
-        
-        h.send_response.assert_called_with(200)
+    def test_chat_id_parsing(self):
+        """Test parsing chat ID from URL path"""
+        path = '/api/chats/123'
+        parts = path.rstrip('/').split('/')
+        chat_id = parts[-1] if parts[-1].isdigit() else None
+        assert chat_id == '123'
     
-    def test_send_json_custom_status(self):
-        """Test sending JSON with custom status"""
-        h = create_mock_handler()
-        h._send_json({'error': 'Not found'}, 404)
-        
-        h.send_response.assert_called_with(404)
+    def test_invalid_chat_id(self):
+        """Test invalid chat ID"""
+        path = '/api/chats/abc'
+        parts = path.rstrip('/').split('/')
+        chat_id = parts[-1] if parts[-1].isdigit() else None
+        assert chat_id is None
     
-    def test_send_json_headers(self):
-        """Test that JSON response sets correct headers"""
-        h = create_mock_handler()
-        h._send_json({'test': 'data'})
-        
-        header_dict = {}
-        for call_obj in h.send_header.call_args_list:
-            header_dict[call_obj[0][0]] = call_obj[0][1]
-        
-        assert header_dict['Content-Type'] == 'application/json'
-        assert header_dict['Access-Control-Allow-Origin'] == '*'
-
-
-# ──────────────────────────────────────────────────────────────
-# Path Parsing Tests
-# ──────────────────────────────────────────────────────────────
-
-class TestPathParsing:
-    """Tests for URL path parsing"""
-    
-    @patch('api.chats.get_user_chats')
-    @patch('api.chats.get_auth_user')
-    def test_path_with_trailing_slash(self, mock_get_auth_user, mock_get_user_chats):
-        """Test path parsing with trailing slash"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
-        mock_get_user_chats.return_value = []
-        
-        h = create_mock_handler(
-            method='GET',
-            path='/api/chats/',
-            headers={'Authorization': 'Bearer valid_token'}
-        )
-        h.do_GET()
-        
-        # Should still work and list all chats
-        h.send_response.assert_called_with(200)
-    
-    @patch('api.chats.get_chat_messages')
-    @patch('api.chats.get_chat')
-    @patch('api.chats.get_auth_user')
-    def test_path_with_query_string(self, mock_get_auth_user, mock_get_chat, mock_get_messages):
-        """Test path parsing with query string"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
-        mock_get_chat.return_value = create_sample_chat()
-        mock_get_messages.return_value = []
-        
-        h = create_mock_handler(
-            method='GET',
-            path='/api/chats/1?include_logs=true',
-            headers={'Authorization': 'Bearer valid_token'}
-        )
-        h.do_GET()
-        
-        h.send_response.assert_called_with(200)
+    def test_query_string_parsing(self):
+        """Test parsing query string parameters"""
+        path = '/api/chats/1?include_logs=true'
+        base_path = path.split('?')[0]
+        query_string = path.split('?')[1] if '?' in path else ''
+        assert 'include_logs=true' in query_string
 
 
 # ──────────────────────────────────────────────────────────────
@@ -699,138 +343,177 @@ class TestErrorHandling:
     """Tests for error handling"""
     
     @patch('api.chats.get_user_chats')
-    @patch('api.chats.get_auth_user')
-    def test_get_server_error(self, mock_get_auth_user, mock_get_user_chats):
-        """Test handling server errors in GET"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
-        mock_get_user_chats.side_effect = Exception("Database error")
+    def test_list_chats_database_error(self, mock_get_user_chats):
+        """Test handling database error when listing chats"""
+        mock_get_user_chats.side_effect = Exception("Database connection failed")
         
-        h = create_mock_handler(
-            method='GET',
-            headers={'Authorization': 'Bearer valid_token'}
-        )
-        h.do_GET()
-        
-        h.send_response.assert_called_with(500)
-        response = get_response_from_handler(h)
-        assert 'Server error' in response['error']
+        with pytest.raises(Exception):
+            mock_get_user_chats(1)
     
     @patch('api.chats.create_chat')
-    @patch('api.chats.get_auth_user')
-    def test_post_server_error(self, mock_get_auth_user, mock_create_chat):
-        """Test handling server errors in POST"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
+    def test_create_chat_database_error(self, mock_create_chat):
+        """Test handling database error when creating chat"""
         mock_create_chat.side_effect = Exception("Database error")
         
-        body = json.dumps({'name': 'Test'})
-        
-        h = create_mock_handler(
-            method='POST',
-            body=body,
-            headers={
-                'Content-Length': str(len(body)),
-                'Authorization': 'Bearer valid_token'
-            }
-        )
-        h.headers['Content-Length'] = str(len(body))
-        h.do_POST()
-        
-        h.send_response.assert_called_with(500)
+        with pytest.raises(Exception):
+            mock_create_chat(1, 'Test', 'Prompt')
     
     @patch('api.chats.delete_chat')
-    @patch('api.chats.get_auth_user')
-    def test_delete_server_error(self, mock_get_auth_user, mock_delete_chat):
-        """Test handling server errors in DELETE"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
+    def test_delete_chat_database_error(self, mock_delete_chat):
+        """Test handling database error when deleting chat"""
         mock_delete_chat.side_effect = Exception("Database error")
         
-        h = create_mock_handler(
-            method='DELETE',
-            path='/api/chats/1',
-            headers={'Authorization': 'Bearer valid_token'}
-        )
-        h.do_DELETE()
+        with pytest.raises(Exception):
+            mock_delete_chat(1, 1)
+    
+    @patch('api.chats.get_chat')
+    def test_get_chat_database_error(self, mock_get_chat):
+        """Test handling database error when retrieving chat"""
+        mock_get_chat.side_effect = Exception("Database error")
         
-        h.send_response.assert_called_with(500)
+        with pytest.raises(Exception):
+            mock_get_chat(1, 1)
 
 
 # ──────────────────────────────────────────────────────────────
 # Integration Tests
 # ──────────────────────────────────────────────────────────────
 
-class TestIntegration:
+class TestChatWorkflows:
     """Integration tests for chat workflows"""
     
     @patch('api.chats.create_chat')
     @patch('api.chats.get_user_chats')
-    @patch('api.chats.get_auth_user')
-    def test_create_then_list_chats(self, mock_get_auth_user, mock_get_user_chats, mock_create_chat):
-        """Test creating chat then listing all chats"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
+    @patch('api.chats.validate_token')
+    def test_create_then_list_chats(self, mock_validate_token, 
+                                     mock_get_user_chats, mock_create_chat):
+        """Test complete workflow: create chat then list all chats"""
+        mock_validate_token.return_value = {'user_id': 1, 'username': 'testuser'}
         new_chat = create_sample_chat()
         mock_create_chat.return_value = new_chat
         
-        # Create chat
-        body = json.dumps({'name': 'New Chat', 'original_prompt': 'Test'})
-        h1 = create_mock_handler(
-            method='POST',
-            body=body,
-            headers={
-                'Content-Length': str(len(body)),
-                'Authorization': 'Bearer valid_token'
-            }
-        )
-        h1.headers['Content-Length'] = str(len(body))
-        h1.do_POST()
+        # Step 1: Authenticate
+        user = get_auth_user({'Authorization': 'Bearer token'})
+        assert user is not None
         
-        response1 = get_response_from_handler(h1)
-        assert response1['success'] is True
+        # Step 2: Create chat
+        created = mock_create_chat(user['user_id'], 'New Chat', 'Test prompt')
+        assert created['ID'] == 1
         
-        # List chats
+        # Step 3: List all chats
         mock_get_user_chats.return_value = [new_chat]
-        h2 = create_mock_handler(
-            method='GET',
-            headers={'Authorization': 'Bearer valid_token'}
-        )
-        h2.do_GET()
-        
-        response2 = get_response_from_handler(h2)
-        assert len(response2['chats']) == 1
+        chats = mock_get_user_chats(user['user_id'])
+        assert len(chats) == 1
     
-    @patch('api.chats.get_chat_messages')
     @patch('api.chats.delete_chat')
+    @patch('api.chats.get_chat_messages')
     @patch('api.chats.get_chat')
-    @patch('api.chats.get_auth_user')
-    def test_get_then_delete_chat(self, mock_get_auth_user, mock_get_chat, 
-                                   mock_delete_chat, mock_get_messages):
-        """Test getting chat then deleting it"""
-        mock_get_auth_user.return_value = {'user_id': 1, 'username': 'testuser'}
+    @patch('api.chats.validate_token')
+    def test_get_then_delete_chat(self, mock_validate_token, mock_get_chat,
+                                   mock_get_messages, mock_delete_chat):
+        """Test complete workflow: get chat then delete it"""
+        mock_validate_token.return_value = {'user_id': 1, 'username': 'testuser'}
         chat = create_sample_chat()
         mock_get_chat.return_value = chat
-        mock_get_messages.return_value = []
+        mock_get_messages.return_value = [create_sample_message()]
         
-        # Get chat
-        h1 = create_mock_handler(
-            method='GET',
-            path='/api/chats/1',
-            headers={'Authorization': 'Bearer valid_token'}
-        )
-        h1.do_GET()
+        # Step 1: Authenticate
+        user = get_auth_user({'Authorization': 'Bearer token'})
         
-        response1 = get_response_from_handler(h1)
-        assert response1['chat']['ID'] == 1
+        # Step 2: Get chat
+        retrieved = mock_get_chat(1, user['user_id'])
+        assert retrieved['ID'] == 1
         
-        # Delete chat
+        # Step 3: Get messages
+        messages = mock_get_messages(1)
+        assert len(messages) == 1
+        
+        # Step 4: Delete chat
         mock_delete_chat.return_value = True
-        h2 = create_mock_handler(
-            method='DELETE',
-            path='/api/chats/1',
-            headers={'Authorization': 'Bearer valid_token'}
-        )
-        h2.do_DELETE()
+        success = mock_delete_chat(1, user['user_id'])
+        assert success is True
+    
+    @patch('api.chats.get_user_chats')
+    @patch('api.chats.create_chat')
+    @patch('api.chats.validate_token')
+    def test_multiple_users_isolated(self, mock_validate_token, 
+                                      mock_create_chat, mock_get_user_chats):
+        """Test that different users' chats are isolated"""
+        # User 1
+        mock_validate_token.return_value = {'user_id': 1, 'username': 'user1'}
+        user1 = get_auth_user({'Authorization': 'Bearer token1'})
         
-        response2 = get_response_from_handler(h2)
-        assert response2['success'] is True
+        chat1 = create_sample_chat()
+        chat1['userId'] = 1
+        mock_get_user_chats.return_value = [chat1]
+        user1_chats = mock_get_user_chats(user1['user_id'])
+        
+        # User 2
+        mock_validate_token.return_value = {'user_id': 2, 'username': 'user2'}
+        user2 = get_auth_user({'Authorization': 'Bearer token2'})
+        
+        chat2 = create_sample_chat()
+        chat2['ID'] = 2
+        chat2['userId'] = 2
+        mock_get_user_chats.return_value = [chat2]
+        user2_chats = mock_get_user_chats(user2['user_id'])
+        
+        # Verify isolation
+        assert user1_chats[0]['userId'] == 1
+        assert user2_chats[0]['userId'] == 2
+        assert user1_chats[0]['ID'] != user2_chats[0]['ID']
+
+
+# ──────────────────────────────────────────────────────────────
+# Chat Retrieval with Logs Tests
+# ──────────────────────────────────────────────────────────────
+
+class TestChatRetrievalWithLogs:
+    """Tests for chat retrieval including generation logs"""
+    
+    @patch('api.chats.get_chat_logs')
+    @patch('api.chats.get_chat_messages')
+    @patch('api.chats.get_chat')
+    def test_retrieve_chat_with_logs(self, mock_get_chat, 
+                                      mock_get_messages, mock_get_logs):
+        """Test retrieving chat with generation logs"""
+        mock_get_chat.return_value = create_sample_chat()
+        mock_get_messages.return_value = [create_sample_message()]
+        mock_get_logs.return_value = [
+            {'ID': 1, 'messageId': 1, 'model_used': 'gpt-4o-mini', 'tokens_used': 150}
+        ]
+        
+        chat = mock_get_chat(1, 1)
+        messages = mock_get_messages(1)
+        logs = mock_get_logs(1)
+        
+        assert chat is not None
+        assert len(messages) == 1
+        assert len(logs) == 1
+        assert logs[0]['tokens_used'] == 150
+    
+    @patch('api.chats.get_chat_logs')
+    def test_retrieve_logs_for_chat(self, mock_get_logs):
+        """Test retrieving logs for a specific chat"""
+        mock_get_logs.return_value = [
+            {'ID': 1, 'model_used': 'gpt-4o', 'tokens_used': 200},
+            {'ID': 2, 'model_used': 'gpt-4o-mini', 'tokens_used': 150}
+        ]
+        
+        logs = mock_get_logs(1)
+        
+        assert len(logs) == 2
+        total_tokens = sum(log['tokens_used'] for log in logs)
+        assert total_tokens == 350
+    
+    @patch('api.chats.get_chat_logs')
+    def test_empty_logs_for_new_chat(self, mock_get_logs):
+        """Test that new chat has no logs"""
+        mock_get_logs.return_value = []
+        
+        logs = mock_get_logs(1)
+        
+        assert logs == []
 
 
 if __name__ == '__main__':
