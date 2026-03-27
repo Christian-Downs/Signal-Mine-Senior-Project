@@ -7,12 +7,14 @@ Supports database logging and custom user models
 from http.server import BaseHTTPRequestHandler
 import json
 import os
+import re
 import uuid
 import time
 from typing import List, Dict, Optional
 
 from pydantic import BaseModel, Field, ValidationError
 from openai import OpenAI
+from scipy.optimize import linprog
 
 # Import database functions
 try:
@@ -178,13 +180,182 @@ def fix_lp(broken_json: str, error_message: str, model: str, api_key: str = None
     return json.loads(response.choices[0].message.content)
 
 
+def parse_expression_coefficients(expression: str, variables: List[str]) -> List[float]:
+    """
+    Parse a linear expression like '3x + 2y - z' into coefficients.
+    Returns list of coefficients in the order of variables.
+    """
+    coefficients = [0.0] * len(variables)
+    
+    # Normalize expression: remove spaces around operators for easier parsing
+    expr = expression.replace(' ', '')
+    
+    # Split into terms (handling + and - signs)
+    # Add a leading + if the expression doesn't start with a sign
+    if expr and expr[0] not in ['+', '-']:
+        expr = '+' + expr
+    
+    # Find all terms with their signs
+    term_pattern = r'([+-]?[^+-]+)'
+    terms = re.findall(term_pattern, expr)
+    
+    for term in terms:
+        term = term.strip()
+        if not term:
+            continue
+        
+        # Find which variable this term contains
+        for i, var in enumerate(variables):
+            if var in term:
+                # Extract coefficient
+                coef_str = term.replace(var, '')
+                if coef_str in ['', '+']:
+                    coef = 1.0
+                elif coef_str == '-':
+                    coef = -1.0
+                else:
+                    coef = float(coef_str)
+                coefficients[i] = coef
+                break
+    
+    return coefficients
+
+
+def parse_constraint(constraint: str, variables: List[str]) -> tuple:
+    """
+    Parse a constraint like 'x + y <= 10' into (coefficients, sense, rhs).
+    sense: -1 for <=, 0 for =, 1 for >=
+    Returns (coefficients, sense, rhs)
+    """
+    # Determine constraint type and split
+    if '<=' in constraint:
+        parts = constraint.split('<=')
+        sense = -1  # less than or equal
+    elif '>=' in constraint:
+        parts = constraint.split('>=')
+        sense = 1   # greater than or equal
+    elif '=' in constraint:
+        parts = constraint.split('=')
+        sense = 0   # equality
+    else:
+        raise ValueError(f"No valid operator found in constraint: {constraint}")
+    
+    lhs = parts[0].strip()
+    rhs = float(parts[1].strip())
+    
+    coefficients = parse_expression_coefficients(lhs, variables)
+    
+    return coefficients, sense, rhs
+
+
+def validate_lp_with_scipy(lp_data: dict) -> tuple:
+    """
+    Validate a linear program by attempting to solve it with scipy.linprog.
+    Returns (is_valid, error_message)
+    """
+    try:
+        lp = lp_data.get('linear_program', {})
+        
+        variables = lp.get('decision_variables', [])
+        if not variables:
+            return False, "No decision variables defined"
+        
+        objective = lp.get('objective_function', '')
+        if not objective:
+            return False, "No objective function defined"
+        
+        objective_type = lp.get('objective_type', 'minimize').lower()
+        constraints = lp.get('constraints', [])
+        variable_bounds = lp.get('variable_bounds', {})
+        
+        # Parse objective function coefficients
+        c = parse_expression_coefficients(objective, variables)
+        
+        # scipy.linprog minimizes, so negate for maximization
+        if objective_type == 'maximize':
+            c = [-coef for coef in c]
+        
+        # Parse constraints
+        A_ub = []  # inequality constraint matrix (<=)
+        b_ub = []  # inequality constraint bounds
+        A_eq = []  # equality constraint matrix
+        b_eq = []  # equality constraint bounds
+        
+        for constraint in constraints:
+            try:
+                coeffs, sense, rhs = parse_constraint(constraint, variables)
+                
+                if sense == -1:  # <=
+                    A_ub.append(coeffs)
+                    b_ub.append(rhs)
+                elif sense == 1:  # >=, convert to <= by negating
+                    A_ub.append([-c for c in coeffs])
+                    b_ub.append(-rhs)
+                else:  # ==
+                    A_eq.append(coeffs)
+                    b_eq.append(rhs)
+            except (ValueError, IndexError) as e:
+                return False, f"Invalid constraint '{constraint}': {str(e)}"
+        
+        # Parse variable bounds
+        bounds = []
+        for var in variables:
+            bound = variable_bounds.get(var, '>= 0')
+            # Parse bound string like ">= 0" or "0 <= x <= 10"
+            if '>=' in bound:
+                lower = float(bound.split('>=')[1].strip())
+                bounds.append((lower, None))
+            elif '<=' in bound:
+                upper = float(bound.split('<=')[1].strip())
+                bounds.append((0, upper))
+            else:
+                bounds.append((0, None))  # Default: non-negative
+        
+        # Prepare arguments for linprog
+        kwargs = {'c': c, 'bounds': bounds, 'method': 'highs'}
+        
+        if A_ub:
+            kwargs['A_ub'] = A_ub
+            kwargs['b_ub'] = b_ub
+        if A_eq:
+            kwargs['A_eq'] = A_eq
+            kwargs['b_eq'] = b_eq
+        
+        # Attempt to solve
+        result = linprog(**kwargs)
+        
+        if result.success:
+            return True, None
+        else:
+            return False, f"LP validation failed: {result.message}"
+    
+    except Exception as e:
+        return False, f"LP parsing/validation error: {str(e)}"
+
+
 def validate_and_heal(raw_data: dict, raw_content: str, model: str, api_key: str = None, base_url: str = None) -> tuple:
-    """Validate and optionally heal the LP response"""
+    """
+    Validate LP response using Pydantic schema and scipy linear program test.
+    If validation fails, attempt to heal the response.
+    """
+    # First, validate the schema with Pydantic
     try:
         validated = LPResponse.model_validate(raw_data)
-        return validated, False
     except ValidationError as e:
+        # Schema validation failed, try to fix
         fixed_data = fix_lp(raw_content, str(e), model, api_key, base_url)
+        validated = LPResponse.model_validate(fixed_data)
+        return validated, True
+    
+    # Schema is valid, now validate the LP mathematically with scipy
+    is_valid, error_msg = validate_lp_with_scipy(raw_data)
+    
+    if is_valid:
+        return validated, False
+    else:
+        # LP is mathematically invalid, attempt to heal
+        heal_msg = f"LP mathematical validation failed: {error_msg}"
+        fixed_data = fix_lp(raw_content, heal_msg, model, api_key, base_url)
         validated = LPResponse.model_validate(fixed_data)
         return validated, True
 
