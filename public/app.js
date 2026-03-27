@@ -496,16 +496,65 @@ async function sendMessage(prompt) {
 // ─────────────────────────────────────────────────────────────
 
 async function loadLogs() {
+    const logsError = document.getElementById('logsError');
+    const logsContent = document.getElementById('logsContent');
+    const logsLoading = document.getElementById('logsLoading');
+
+    // Check if user is authenticated
+    if (!currentUser || !authToken) {
+        if (logsError) {
+            logsError.textContent = 'Please log in to view your usage logs.';
+            logsError.classList.remove('d-none');
+        }
+        renderLogs({ logs: [], summary: {} });
+        return;
+    }
+
+    // Show loading state
+    if (logsLoading) logsLoading.classList.remove('d-none');
+    if (logsError) logsError.classList.add('d-none');
+    if (logsContent) logsContent.style.opacity = '0.5';
+
     try {
         const resp = await fetch(`${API_BASE}/logs`, {
             headers: getAuthHeaders()
         });
-        
+
+        // Hide loading state
+        if (logsLoading) logsLoading.classList.add('d-none');
+        if (logsContent) logsContent.style.opacity = '1';
+
         if (resp.ok) {
             const data = await resp.json();
             renderLogs(data);
+            if (logsError) logsError.classList.add('d-none');
+        } else {
+            // Handle error responses
+            const errorData = await resp.json().catch(() => ({}));
+            const errorMsg = errorData.error || `Failed to load logs (${resp.status})`;
+
+            if (logsError) {
+                logsError.textContent = errorMsg;
+                logsError.classList.remove('d-none');
+            }
+
+            // Clear existing logs on error
+            renderLogs({ logs: [], summary: {} });
+            console.error('Failed to load logs:', errorMsg);
         }
     } catch (e) {
+        // Hide loading state
+        if (logsLoading) logsLoading.classList.add('d-none');
+        if (logsContent) logsContent.style.opacity = '1';
+
+        // Show network error
+        if (logsError) {
+            logsError.textContent = 'Network error: Unable to connect to server';
+            logsError.classList.remove('d-none');
+        }
+
+        // Clear existing logs on error
+        renderLogs({ logs: [], summary: {} });
         console.error('Failed to load logs:', e);
     }
 }
