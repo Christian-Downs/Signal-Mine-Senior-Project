@@ -180,6 +180,20 @@ def init_database():
                 END $$;
             """)
 
+        # Migrations: Add missing columns to existing tables
+        # Add created_at to Logs table if it doesn't exist
+        cursor.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'Logs' AND column_name = 'created_at'
+                ) THEN
+                    ALTER TABLE "Logs" ADD COLUMN "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+                END IF;
+            END $$;
+        """)
+
 
 # ──────────────────────────────────────────────────────────────
 # User Functions
