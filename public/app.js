@@ -516,15 +516,28 @@ function renderLogs(data) {
     document.getElementById('totalTokens').textContent = data.summary?.total_tokens || 0;
     document.getElementById('avgResponseTime').textContent = `${data.summary?.avg_response_time_ms || 0}ms`;
     document.getElementById('healedCount').textContent = data.summary?.healed_count || 0;
-    
+
     // Render logs table
     const tbody = document.getElementById('logsBody');
     tbody.innerHTML = '';
-    
-    (data.logs || []).forEach(log => {
-        const tr = document.createElement('tr');
+
+    (data.logs || []).forEach((log, index) => {
         const date = new Date(log.created_at);
+        const logId = `log-${index}`;
+
+        // Parse log JSON if available
+        let logData = null;
+        try {
+            logData = log.log ? JSON.parse(log.log) : null;
+        } catch (e) {
+            console.warn('Failed to parse log data:', e);
+        }
+
+        // Main row
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
         tr.innerHTML = `
+            <td><span id="${logId}-toggle">▶</span></td>
             <td>${date.toLocaleString()}</td>
             <td>${log.chat_name || '-'}</td>
             <td>${log.model_used || '-'}</td>
@@ -532,8 +545,133 @@ function renderLogs(data) {
             <td>${log.response_time_ms || '-'}ms</td>
             <td>${log.was_healed ? '✓' : '-'}</td>
         `;
+
+        // Details row (hidden by default)
+        const detailTr = document.createElement('tr');
+        detailTr.id = `${logId}-details`;
+        detailTr.style.display = 'none';
+        detailTr.innerHTML = `
+            <td colspan="7">
+                ${logData ? renderLogDetails(logData) : '<em>No detailed log data available</em>'}
+            </td>
+        `;
+
+        // Toggle details on click
+        tr.addEventListener('click', () => {
+            const details = document.getElementById(`${logId}-details`);
+            const toggle = document.getElementById(`${logId}-toggle`);
+            if (details.style.display === 'none') {
+                details.style.display = 'table-row';
+                toggle.textContent = '▼';
+            } else {
+                details.style.display = 'none';
+                toggle.textContent = '▶';
+            }
+        });
+
         tbody.appendChild(tr);
+        tbody.appendChild(detailTr);
     });
+}
+
+function renderLogDetails(logData) {
+    let html = '<div class="p-3 bg-secondary rounded">';
+
+    // Request info
+    if (logData.request) {
+        html += '<h6 class="text-warning">Request</h6>';
+        html += '<div class="mb-2">';
+        html += `<small><strong>Model:</strong> ${logData.request.model || 'N/A'}</small><br>`;
+        html += `<small><strong>History Length:</strong> ${logData.request.history_length || 0} messages</small><br>`;
+        if (logData.request.custom_api_used) {
+            html += `<small><strong>Custom API:</strong> Yes</small><br>`;
+        }
+        if (logData.request.prompt) {
+            html += `<small><strong>Prompt:</strong> ${logData.request.prompt.substring(0, 100)}${logData.request.prompt.length > 100 ? '...' : ''}</small>`;
+        }
+        html += '</div>';
+    }
+
+    // Handoff details
+    if (logData.handoffs) {
+        html += '<h6 class="text-info mt-3">Handoffs</h6>';
+
+        // Generation handoff
+        if (logData.handoffs.generation) {
+            const gen = logData.handoffs.generation;
+            html += '<div class="mb-2 ms-3">';
+            html += '<strong class="text-success">1. LP Generation</strong><br>';
+            html += `<small>⏱️ Time: ${gen.time_ms}ms</small><br>`;
+            html += `<small>🔢 Tokens: ${gen.tokens_used || 'N/A'}</small><br>`;
+            html += `<small>📦 Response Length: ${gen.raw_response_length} chars</small>`;
+            html += '</div>';
+        }
+
+        // Validation handoff
+        if (logData.handoffs.validation) {
+            const val = logData.handoffs.validation;
+            html += '<div class="mb-2 ms-3">';
+            html += '<strong class="text-primary">2. Validation & Healing</strong><br>';
+            html += `<small>⏱️ Time: ${val.time_ms}ms</small><br>`;
+
+            // Schema validation
+            if (val.schema_validation) {
+                const icon = val.schema_validation.passed ? '✅' : '❌';
+                html += `<small>${icon} Schema Validation: ${val.schema_validation.passed ? 'Passed' : 'Failed'}</small><br>`;
+                if (val.schema_validation.error) {
+                    html += `<small class="text-danger">Error: ${val.schema_validation.error.substring(0, 150)}...</small><br>`;
+                }
+            }
+
+            // Math validation
+            if (val.math_validation) {
+                const icon = val.math_validation.passed ? '✅' : '❌';
+                html += `<small>${icon} Math Validation: ${val.math_validation.passed ? 'Passed' : 'Failed'}</small><br>`;
+                if (val.math_validation.error) {
+                    html += `<small class="text-danger">Error: ${val.math_validation.error.substring(0, 150)}...</small><br>`;
+                }
+            }
+
+            // Healing
+            if (val.healing && val.healing.attempted) {
+                const icon = val.healing.successful ? '✅' : '❌';
+                html += `<small>${icon} Self-Healing: ${val.healing.successful ? 'Successful' : 'Failed'}</small><br>`;
+                if (val.healing.error) {
+                    html += `<small class="text-danger">Healing Error: ${val.healing.error.substring(0, 150)}...</small><br>`;
+                }
+            }
+
+            html += '</div>';
+        }
+
+        // Formatting handoff
+        if (logData.handoffs.formatting) {
+            const fmt = logData.handoffs.formatting;
+            html += '<div class="mb-2 ms-3">';
+            html += '<strong class="text-info">3. Message Formatting</strong><br>';
+            html += `<small>⏱️ Time: ${fmt.time_ms}ms</small><br>`;
+            html += `<small>📝 Message Length: ${fmt.message_length} chars</small>`;
+            html += '</div>';
+        }
+    }
+
+    // Response summary
+    if (logData.response) {
+        html += '<h6 class="text-warning mt-3">Response Summary</h6>';
+        html += '<div class="mb-2">';
+        html += `<small><strong>Total Time:</strong> ${logData.response.total_time_ms}ms</small><br>`;
+        html += `<small><strong>Was Healed:</strong> ${logData.response.was_healed ? 'Yes' : 'No'}</small><br>`;
+        if (logData.response.lp_summary) {
+            const lp = logData.response.lp_summary;
+            html += `<small><strong>LP Type:</strong> ${lp.objective_type || 'N/A'}</small><br>`;
+            html += `<small><strong>Variables:</strong> ${lp.num_variables || 0}</small><br>`;
+            html += `<small><strong>Constraints:</strong> ${lp.num_constraints || 0}</small>`;
+        }
+        html += '</div>';
+    }
+
+    html += '</div>';
+    return html;
 }
 
 // ─────────────────────────────────────────────────────────────

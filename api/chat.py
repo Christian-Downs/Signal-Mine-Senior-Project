@@ -337,27 +337,50 @@ def validate_and_heal(raw_data: dict, raw_content: str, model: str, api_key: str
     """
     Validate LP response using Pydantic schema and scipy linear program test.
     If validation fails, attempt to heal the response.
+    Returns: (validated_response, was_healed, validation_details)
     """
+    validation_details = {
+        'schema_validation': {'passed': False, 'error': None},
+        'math_validation': {'passed': False, 'error': None},
+        'healing': {'attempted': False, 'successful': False, 'error': None}
+    }
+
     # First, validate the schema with Pydantic
     try:
         validated = LPResponse.model_validate(raw_data)
+        validation_details['schema_validation']['passed'] = True
     except ValidationError as e:
         # Schema validation failed, try to fix
-        fixed_data = fix_lp(raw_content, str(e), model, api_key, base_url)
-        validated = LPResponse.model_validate(fixed_data)
-        return validated, True
-    
+        validation_details['schema_validation']['error'] = str(e)
+        validation_details['healing']['attempted'] = True
+        try:
+            fixed_data = fix_lp(raw_content, str(e), model, api_key, base_url)
+            validated = LPResponse.model_validate(fixed_data)
+            validation_details['healing']['successful'] = True
+            return validated, True, validation_details
+        except Exception as heal_error:
+            validation_details['healing']['error'] = str(heal_error)
+            raise
+
     # Schema is valid, now validate the LP mathematically with scipy
     is_valid, error_msg = validate_lp_with_scipy(raw_data)
-    
+
     if is_valid:
-        return validated, False
+        validation_details['math_validation']['passed'] = True
+        return validated, False, validation_details
     else:
         # LP is mathematically invalid, attempt to heal
+        validation_details['math_validation']['error'] = error_msg
+        validation_details['healing']['attempted'] = True
         heal_msg = f"LP mathematical validation failed: {error_msg}"
-        fixed_data = fix_lp(raw_content, heal_msg, model, api_key, base_url)
-        validated = LPResponse.model_validate(fixed_data)
-        return validated, True
+        try:
+            fixed_data = fix_lp(raw_content, heal_msg, model, api_key, base_url)
+            validated = LPResponse.model_validate(fixed_data)
+            validation_details['healing']['successful'] = True
+            return validated, True, validation_details
+        except Exception as heal_error:
+            validation_details['healing']['error'] = str(heal_error)
+            raise
 
 
 def build_response_message(lp: LinearProgram, response: LPResponse, was_healed: bool) -> str:
@@ -472,12 +495,21 @@ class handler(BaseHTTPRequestHandler):
                     traceback.print_exc()
             
             # Generate LP
+            generation_start = time.time()
             raw_data, raw_content, tokens_used = generate_lp(prompt, model, history, api_key, base_url)
-            validated_response, was_healed = validate_and_heal(raw_data, raw_content, model, api_key, base_url)
-            
+            generation_time_ms = int((time.time() - generation_start) * 1000)
+
+            # Validate and heal
+            validation_start = time.time()
+            validated_response, was_healed, validation_details = validate_and_heal(raw_data, raw_content, model, api_key, base_url)
+            validation_time_ms = int((time.time() - validation_start) * 1000)
+
+            # Format message
+            formatting_start = time.time()
             lp = validated_response.linear_program
             message = build_response_message(lp, validated_response, was_healed)
-            
+            formatting_time_ms = int((time.time() - formatting_start) * 1000)
+
             # Calculate response time
             response_time_ms = int((time.time() - start_time) * 1000)
             
@@ -502,13 +534,37 @@ class handler(BaseHTTPRequestHandler):
                         # Create log entry for model communication
                         log_content = json.dumps({
                             'request': {
-                                'prompt': prompt,
+                                'prompt': prompt[:500] + '...' if len(prompt) > 500 else prompt,
                                 'model': model,
-                                'history_length': len(history)
+                                'history_length': len(history),
+                                'custom_api_used': api_key is not None
+                            },
+                            'handoffs': {
+                                'generation': {
+                                    'time_ms': generation_time_ms,
+                                    'tokens_used': tokens_used,
+                                    'raw_response_length': len(raw_content),
+                                    'raw_response_preview': raw_content[:500] + '...' if len(raw_content) > 500 else raw_content
+                                },
+                                'validation': {
+                                    'time_ms': validation_time_ms,
+                                    'schema_validation': validation_details['schema_validation'],
+                                    'math_validation': validation_details['math_validation'],
+                                    'healing': validation_details['healing']
+                                },
+                                'formatting': {
+                                    'time_ms': formatting_time_ms,
+                                    'message_length': len(message)
+                                }
                             },
                             'response': {
-                                'raw': raw_content[:1000] + '...' if len(raw_content) > 1000 else raw_content,
-                                'was_healed': was_healed
+                                'was_healed': was_healed,
+                                'total_time_ms': response_time_ms,
+                                'lp_summary': {
+                                    'objective_type': lp.objective_type,
+                                    'num_variables': len(lp.decision_variables),
+                                    'num_constraints': len(lp.constraints)
+                                }
                             }
                         })
                         

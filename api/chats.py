@@ -63,23 +63,27 @@ class handler(BaseHTTPRequestHandler):
             if chat_id:
                 # Get specific chat with messages
                 chat = get_chat(chat_id, user['user_id'])
-                
+
                 if not chat:
                     self._send_json({'error': 'Chat not found'}, 404)
                     return
-                
-                messages = get_chat_messages(chat_id)
-                
+
+                # Get limit from query params (default 100 for performance)
+                message_limit = int(query.get('message_limit', [100])[0])
+                log_limit = int(query.get('log_limit', [100])[0])
+
+                messages = get_chat_messages(chat_id, limit=message_limit)
+
                 response = {
                     'chat': self._serialize_dict(chat),
                     'messages': [self._serialize_dict(msg) for msg in messages]
                 }
-                
+
                 # Include logs if requested
                 if query.get('include_logs'):
-                    logs = get_chat_logs(chat_id)
+                    logs = get_chat_logs(chat_id, limit=log_limit)
                     response['logs'] = [self._serialize_dict(log) for log in logs]
-                
+
                 self._send_json(response)
             else:
                 # Get all user's chats

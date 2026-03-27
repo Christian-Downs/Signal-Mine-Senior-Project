@@ -391,28 +391,32 @@ class TestValidateAndHeal:
     def test_validate_and_heal_valid_response(self):
         """Test validation with valid response (no healing needed)"""
         valid_data = create_sample_lp_response()
-        
-        response, was_healed = validate_and_heal(valid_data, json.dumps(valid_data), 'gpt-4o-mini')
-        
+
+        response, was_healed, validation_details = validate_and_heal(valid_data, json.dumps(valid_data), 'gpt-4o-mini')
+
         assert isinstance(response, LPResponse)
         assert was_healed is False
-    
+        assert validation_details['schema_validation']['passed'] is True
+        assert validation_details['math_validation']['passed'] is True
+
     @patch('api.chat.fix_lp')
     def test_validate_and_heal_invalid_response(self, mock_fix_lp):
         """Test validation with invalid response (healing applied)"""
         invalid_data = {'linear_program': {}}  # Missing required fields
         fixed_data = create_sample_lp_response()
-        
+
         mock_fix_lp.return_value = fixed_data
-        
-        response, was_healed = validate_and_heal(
+
+        response, was_healed, validation_details = validate_and_heal(
             invalid_data,
             json.dumps(invalid_data),
             'gpt-4o-mini'
         )
-        
+
         assert isinstance(response, LPResponse)
         assert was_healed is True
+        assert validation_details['healing']['attempted'] is True
+        assert validation_details['healing']['successful'] is True
         mock_fix_lp.assert_called_once()
 
 
