@@ -334,13 +334,19 @@ def create_message(chat_id: int, message: str, order: int, origin: str) -> Dict:
         return result
 
 
-def get_chat_messages(chat_id: int) -> List[Dict]:
-    """Get all messages for a chat"""
+def get_chat_messages(chat_id: int, limit: int = None) -> List[Dict]:
+    """Get messages for a chat with optional limit"""
     with get_db_cursor(commit=False) as cursor:
-        cursor.execute(
-            'SELECT * FROM "Messages" WHERE "chatID" = %s ORDER BY "order" ASC',
-            (chat_id,)
-        )
+        if limit:
+            cursor.execute(
+                'SELECT * FROM "Messages" WHERE "chatID" = %s ORDER BY "order" ASC LIMIT %s',
+                (chat_id, limit)
+            )
+        else:
+            cursor.execute(
+                'SELECT * FROM "Messages" WHERE "chatID" = %s ORDER BY "order" ASC',
+                (chat_id,)
+            )
         return [dict(row) for row in cursor.fetchall()]
 
 
@@ -454,16 +460,26 @@ def get_message_logs(message_id: int) -> List[Dict]:
         return [dict(row) for row in cursor.fetchall()]
 
 
-def get_chat_logs(chat_id: int) -> List[Dict]:
-    """Get all logs for a chat"""
+def get_chat_logs(chat_id: int, limit: int = None) -> List[Dict]:
+    """Get logs for a chat with optional limit"""
     with get_db_cursor(commit=False) as cursor:
-        cursor.execute('''
-            SELECT l.*, m."order" as message_order, m."origin" as message_origin
-            FROM "Logs" l
-            JOIN "Messages" m ON l."messageId" = m."ID"
-            WHERE m."chatID" = %s
-            ORDER BY l."created_at" ASC
-        ''', (chat_id,))
+        if limit:
+            cursor.execute('''
+                SELECT l.*, m."order" as message_order, m."origin" as message_origin
+                FROM "Logs" l
+                JOIN "Messages" m ON l."messageId" = m."ID"
+                WHERE m."chatID" = %s
+                ORDER BY l."created_at" ASC
+                LIMIT %s
+            ''', (chat_id, limit))
+        else:
+            cursor.execute('''
+                SELECT l.*, m."order" as message_order, m."origin" as message_origin
+                FROM "Logs" l
+                JOIN "Messages" m ON l."messageId" = m."ID"
+                WHERE m."chatID" = %s
+                ORDER BY l."created_at" ASC
+            ''', (chat_id,))
         return [dict(row) for row in cursor.fetchall()]
 
 
