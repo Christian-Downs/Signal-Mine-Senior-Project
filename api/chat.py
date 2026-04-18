@@ -117,6 +117,36 @@ LP_FIXER_SYSTEM_PROMPT = """Fix the malformed Linear Program JSON to match this 
 }
 Return ONLY valid JSON."""
 
+LP_RECOVERY_AGENT_SYSTEM_PROMPT = """You are a recovery agent for malformed linear-program responses.
+
+You will receive:
+1. The original user prompt
+2. A malformed or partial model response
+3. An error message explaining why parsing or validation failed
+
+Return a single valid JSON object with EXACTLY this structure:
+{
+    "linear_program": {
+        "problem_description": "string",
+        "objective_type": "maximize" or "minimize",
+        "objective_function": "string",
+        "decision_variables": ["array"],
+        "constraints": ["array"],
+        "variable_bounds": {"var": "bound"},
+        "latex_formulation": "string or null",
+        "python_code": "string or null"
+    },
+    "explanation": "string",
+    "assumptions": ["array"],
+    "suggestions": ["array"]
+}
+
+Rules:
+- If the malformed response contains enough information, repair it into a proper LP.
+- If essential details are missing, return a safe placeholder LP template that is still valid JSON.
+- In that fallback case, use a minimal feasible LP, explain that clarification is required, and put concrete follow-up questions for the user in the suggestions array.
+- Return ONLY JSON."""
+
 
 # ──────────────────────────────────────────────────────────────
 # AI Functions
@@ -147,6 +177,96 @@ def get_auth_user(headers):
     return validate_token(token)
 
 
+def parse_model_json(raw_content: str) -> dict:
+    """Parse model output into JSON, tolerating common wrapper formats."""
+    text = (raw_content or '').strip()
+    candidates = [text]
+
+    fence_match = re.search(r'```(?:json)?\s*(.*?)```', text, re.DOTALL)
+    if fence_match:
+        candidates.append(fence_match.group(1).strip())
+
+    start = text.find('{')
+    end = text.rfind('}')
+    if start != -1 and end != -1 and end > start:
+        candidates.append(text[start:end + 1])
+
+    last_error = None
+    seen = set()
+
+    for candidate in candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError as exc:
+            last_error = exc
+
+    raise ValueError(f"Invalid JSON returned by model: {last_error}")
+
+
+def build_questionnaire_fallback(user_prompt: str, error_message: str, broken_content: str = '') -> dict:
+    """Build a valid fallback response that asks the user for missing LP details."""
+    prompt_preview = (user_prompt or '').strip() or 'the submitted optimization problem'
+    prompt_preview = prompt_preview[:200]
+
+    return {
+        'linear_program': {
+            'problem_description': f'Clarification needed for: {prompt_preview}',
+            'objective_type': 'minimize',
+            'objective_function': '0',
+            'decision_variables': ['x_placeholder'],
+            'constraints': [],
+            'variable_bounds': {'x_placeholder': '>= 0'},
+            'latex_formulation': r'\text{Clarification required before a valid LP can be formed}',
+            'python_code': '# Clarification required before generating solver code'
+        },
+        'explanation': (
+            'The model response could not be converted into a valid linear program automatically. '
+            'A placeholder template was created so the conversation can continue without failing.'
+        ),
+        'assumptions': [
+            'The original response was malformed or incomplete.',
+            f'Last recovery error: {error_message[:300]}'
+        ],
+        'suggestions': [
+            'What exactly should the objective optimize or minimize?',
+            'What are the decision variables and what does each index represent?',
+            'What constraints must always hold?',
+            'What bounds or integrality requirements apply to each variable?',
+            'Are there any required constants, capacities, demands, or time-index sets to include?'
+        ]
+    }
+
+
+def recover_lp_or_questions(user_prompt: str, broken_content: str, error_message: str, model: str,
+                            api_key: str = None, base_url: str = None) -> dict:
+    """Use a second-pass recovery agent; fall back to a questionnaire if needed."""
+    client = get_openai_client(api_key, base_url)
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": LP_RECOVERY_AGENT_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": (
+                        f"Original user prompt:\n{user_prompt}\n\n"
+                        f"Recovery error:\n{error_message}\n\n"
+                        f"Malformed response:\n{broken_content}"
+                    )
+                }
+            ],
+            temperature=0.1,
+        )
+        return parse_model_json(response.choices[0].message.content)
+    except Exception:
+        return build_questionnaire_fallback(user_prompt, error_message, broken_content)
+
+
 def generate_lp(prompt: str, model: str, history: List[dict], api_key: str = None, base_url: str = None) -> tuple:
     """Generate LP with optional custom API credentials"""
     client = get_openai_client(api_key, base_url)
@@ -162,7 +282,16 @@ def generate_lp(prompt: str, model: str, history: List[dict], api_key: str = Non
     )
     raw_content = response.choices[0].message.content
     tokens_used = response.usage.total_tokens if response.usage else None
-    return json.loads(raw_content), raw_content, tokens_used
+
+    try:
+        parsed = parse_model_json(raw_content)
+    except ValueError as exc:
+        try:
+            parsed = fix_lp(raw_content, str(exc), model, api_key, base_url)
+        except Exception:
+            parsed = recover_lp_or_questions(prompt, raw_content, str(exc), model, api_key, base_url)
+
+    return parsed, raw_content, tokens_used
 
 
 def fix_lp(broken_json: str, error_message: str, model: str, api_key: str = None, base_url: str = None) -> dict:
@@ -177,7 +306,7 @@ def fix_lp(broken_json: str, error_message: str, model: str, api_key: str = None
         ],
         temperature=0.1,
     )
-    return json.loads(response.choices[0].message.content)
+    return parse_model_json(response.choices[0].message.content)
 
 
 def parse_expression_coefficients(expression: str, variables: List[str]) -> List[float]:
@@ -333,7 +462,8 @@ def validate_lp_with_scipy(lp_data: dict) -> tuple:
         return False, f"LP parsing/validation error: {str(e)}"
 
 
-def validate_and_heal(raw_data: dict, raw_content: str, model: str, api_key: str = None, base_url: str = None) -> tuple:
+def validate_and_heal(raw_data: dict, raw_content: str, model: str, api_key: str = None,
+                      base_url: str = None, user_prompt: str = '') -> tuple:
     """
     Validate LP response using Pydantic schema and scipy linear program test.
     If validation fails, attempt to heal the response.
@@ -360,7 +490,10 @@ def validate_and_heal(raw_data: dict, raw_content: str, model: str, api_key: str
             return validated, True, validation_details
         except Exception as heal_error:
             validation_details['healing']['error'] = str(heal_error)
-            raise
+            recovered_data = recover_lp_or_questions(user_prompt, raw_content, str(heal_error), model, api_key, base_url)
+            validated = LPResponse.model_validate(recovered_data)
+            validation_details['healing']['successful'] = True
+            return validated, True, validation_details
 
     # Schema is valid, now validate the LP mathematically with scipy
     is_valid, error_msg = validate_lp_with_scipy(raw_data)
@@ -380,31 +513,53 @@ def validate_and_heal(raw_data: dict, raw_content: str, model: str, api_key: str
             return validated, True, validation_details
         except Exception as heal_error:
             validation_details['healing']['error'] = str(heal_error)
-            raise
+            recovered_data = recover_lp_or_questions(user_prompt, raw_content, str(heal_error), model, api_key, base_url)
+            validated = LPResponse.model_validate(recovered_data)
+            validation_details['healing']['successful'] = True
+            return validated, True, validation_details
+
+
+def format_lp_math(text: Optional[str]) -> str:
+    """Convert plain LP-style expressions into KaTeX-friendly math."""
+    if not text:
+        return ''
+
+    formatted = text
+    formatted = re.sub(r'\b([A-Za-z][A-Za-z0-9]*)_([A-Za-z0-9]+)\b', r'\1_{\2}', formatted)
+    formatted = formatted.replace('<=', r' \leq ')
+    formatted = formatted.replace('>=', r' \geq ')
+    formatted = formatted.replace('*', r' \cdot ')
+    return formatted
 
 
 def build_response_message(lp: LinearProgram, response: LPResponse, was_healed: bool) -> str:
+    question_items = [item for item in response.suggestions if item.strip().endswith('?')]
+    suggestion_items = [item for item in response.suggestions if item not in question_items]
+    question_section = ''
+    if question_items:
+        question_section = "\n\n**Questions for Clarification:**\n" + chr(10).join(
+            f'- {question}' for question in question_items
+        )
+
     msg = f"""## Linear Program Formulation
 
 **Problem:** {lp.problem_description}
 
 **Objective ({lp.objective_type}):**
-$$\\text{{{lp.objective_type}}} \\quad {lp.objective_function}$$
+$$\\text{{{lp.objective_type}}} \\quad {format_lp_math(lp.objective_function)}$$
 
-**Decision Variables:** {', '.join(lp.decision_variables)}
+**Decision Variables:** {', '.join(f'${format_lp_math(v)}$' for v in lp.decision_variables)}
 
 **Constraints:**
-{chr(10).join(f'- ${c}$' for c in lp.constraints)}
+{chr(10).join(f'- ${format_lp_math(c)}$' for c in lp.constraints)}
 
 **Variable Bounds:**
-{chr(10).join(f'- ${v} {b}$' for v, b in lp.variable_bounds.items())}
+{chr(10).join(f'- ${format_lp_math(v)} {format_lp_math(b)}$' for v, b in lp.variable_bounds.items())}
 
 ---
 
 ### LaTeX Formulation
-```latex
-{lp.latex_formulation or 'Not provided'}
-```
+$${lp.latex_formulation or '\\text{Not provided}'}$$
 
 ### Python Code
 ```python
@@ -417,7 +572,9 @@ $$\\text{{{lp.objective_type}}} \\quad {lp.objective_function}$$
 
 **Assumptions:** {', '.join(response.assumptions) if response.assumptions else 'None'}
 
-**Suggestions:** {', '.join(response.suggestions) if response.suggestions else 'None'}
+{question_section}
+
+**Suggestions:** {', '.join(suggestion_items) if suggestion_items else 'None'}
 """
     if was_healed:
         msg = "⚠️ *Self-healing was applied to fix the LP format.*\n\n" + msg
@@ -501,7 +658,14 @@ class handler(BaseHTTPRequestHandler):
 
             # Validate and heal
             validation_start = time.time()
-            validated_response, was_healed, validation_details = validate_and_heal(raw_data, raw_content, model, api_key, base_url)
+            validated_response, was_healed, validation_details = validate_and_heal(
+                raw_data,
+                raw_content,
+                model,
+                api_key,
+                base_url,
+                prompt
+            )
             validation_time_ms = int((time.time() - validation_start) * 1000)
 
             # Format message

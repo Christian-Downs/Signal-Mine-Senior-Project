@@ -251,6 +251,19 @@ def validate_and_heal(raw_data: dict, raw_content: str, model: str, api_key: str
         return validated, True
 
 
+def format_lp_math(text: Optional[str]) -> str:
+    """Convert plain LP-style expressions into KaTeX-friendly math."""
+    if not text:
+        return ''
+
+    formatted = text
+    formatted = re.sub(r'\b([A-Za-z][A-Za-z0-9]*)_([A-Za-z0-9]+)\b', r'\1_{\2}', formatted)
+    formatted = formatted.replace('<=', r' \leq ')
+    formatted = formatted.replace('>=', r' \geq ')
+    formatted = formatted.replace('*', r' \cdot ')
+    return formatted
+
+
 def build_response_message(lp: LinearProgram, response: LPResponse, was_healed: bool) -> str:
     """Build formatted response message"""
     msg = f"""## Linear Program Formulation
@@ -258,15 +271,15 @@ def build_response_message(lp: LinearProgram, response: LPResponse, was_healed: 
 **Problem:** {lp.problem_description}
 
 **Objective ({lp.objective_type}):**
-$$\\text{{{lp.objective_type}}} \\quad {lp.objective_function}$$
+$$\\text{{{lp.objective_type}}} \\quad {format_lp_math(lp.objective_function)}$$
 
-**Decision Variables:** {', '.join(lp.decision_variables)}
+**Decision Variables:** {', '.join(f'${format_lp_math(v)}$' for v in lp.decision_variables)}
 
 **Constraints:**
-{chr(10).join(f'- ${c}$' for c in lp.constraints)}
+{chr(10).join(f'- ${format_lp_math(c)}$' for c in lp.constraints)}
 
 **Variable Bounds:**
-{chr(10).join(f'- ${v} {b}$' for v, b in lp.variable_bounds.items())}
+{chr(10).join(f'- ${format_lp_math(v)} {format_lp_math(b)}$' for v, b in lp.variable_bounds.items())}
 
 ---
 

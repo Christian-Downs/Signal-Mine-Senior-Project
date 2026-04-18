@@ -716,7 +716,6 @@ function addMessage(role, content, isLoading = false, isError = false, wasHealed
     scrollToBottom();
 
     if (!isLoading) {
-        renderMathIn(div);
         highlightCodeIn(div);
     }
 
@@ -732,8 +731,52 @@ function renderMarkdown(text) {
     if (!text) return '';
 
     if (typeof marked !== 'undefined') {
+        // Protect math blocks from markdown processing by pre-rendering with KaTeX
+        const mathBlocks = [];
+        let protected_text = text;
+
+        function storeBlock(match, inner, display) {
+            let rendered;
+            if (typeof katex !== 'undefined') {
+                try {
+                    rendered = katex.renderToString(inner, { displayMode: display, throwOnError: false });
+                } catch (e) {
+                    rendered = match; // fallback to original
+                }
+            } else {
+                rendered = match;
+            }
+            mathBlocks.push(rendered);
+            return `%%MATH_BLOCK_${mathBlocks.length - 1}%%`;
+        }
+
+        // Protect display math ($$...$$) first
+        protected_text = protected_text.replace(/\$\$([\s\S]*?)\$\$/g, (match, inner) => {
+            return storeBlock(match, inner, true);
+        });
+
+        // Protect inline math ($...$) — avoid matching escaped \$
+        protected_text = protected_text.replace(/(?<!\$)\$(?!\$)([^\$]+?)\$(?!\$)/g, (match, inner) => {
+            return storeBlock(match, inner, false);
+        });
+
+        // Protect \[...\] and \(...\)
+        protected_text = protected_text.replace(/\\\[([\s\S]*?)\\\]/g, (match, inner) => {
+            return storeBlock(match, inner, true);
+        });
+        protected_text = protected_text.replace(/\\\(([\s\S]*?)\\\)/g, (match, inner) => {
+            return storeBlock(match, inner, false);
+        });
+
         marked.setOptions({ breaks: true, gfm: true });
-        return marked.parse(text);
+        let html = marked.parse(protected_text);
+
+        // Restore pre-rendered math blocks
+        for (let i = 0; i < mathBlocks.length; i++) {
+            html = html.replace(`%%MATH_BLOCK_${i}%%`, mathBlocks[i]);
+        }
+
+        return html;
     }
 
     return text

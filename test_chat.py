@@ -19,7 +19,7 @@ from api.chat import (
     LinearProgram, LPResponse, AVAILABLE_MODELS, DEFAULT_MODEL,
     LP_GENERATOR_SYSTEM_PROMPT, LP_FIXER_SYSTEM_PROMPT,
     get_openai_client, get_auth_user, generate_lp, fix_lp,
-    validate_and_heal, build_response_message
+    validate_and_heal, build_response_message, build_questionnaire_fallback
 )
 
 
@@ -334,6 +334,27 @@ class TestGenerateLP:
         
         assert tokens is None
 
+    @patch('api.chat.recover_lp_or_questions')
+    @patch('api.chat.fix_lp')
+    @patch('api.chat.get_openai_client')
+    def test_generate_lp_invalid_json_uses_recovery_agent(self, mock_get_client, mock_fix_lp, mock_recover):
+        """Test malformed JSON falls through to the recovery agent."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_fix_lp.side_effect = ValueError('still broken')
+        mock_recover.return_value = create_sample_lp_response()
+
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = '{"linear_program": {"broken": true'
+        mock_response.usage.total_tokens = 77
+        mock_client.chat.completions.create.return_value = mock_response
+
+        result, raw_content, tokens = generate_lp('Need a nurse schedule', 'gpt-4o-mini', [])
+
+        assert result['linear_program']['objective_type'] == 'maximize'
+        assert tokens == 77
+        mock_recover.assert_called_once()
+
 
 # ──────────────────────────────────────────────────────────────
 # LP Fixing Tests
@@ -419,6 +440,27 @@ class TestValidateAndHeal:
         assert validation_details['healing']['successful'] is True
         mock_fix_lp.assert_called_once()
 
+    @patch('api.chat.recover_lp_or_questions')
+    @patch('api.chat.fix_lp')
+    def test_validate_and_heal_schema_failure_uses_recovery_agent(self, mock_fix_lp, mock_recover):
+        """Test recovery agent is used when the fixer still fails."""
+        invalid_data = {'linear_program': {}}
+        mock_fix_lp.side_effect = ValueError('fixer failed')
+        mock_recover.return_value = build_questionnaire_fallback('Prompt text', 'fixer failed')
+
+        response, was_healed, validation_details = validate_and_heal(
+            invalid_data,
+            json.dumps(invalid_data),
+            'gpt-4o-mini',
+            user_prompt='Prompt text'
+        )
+
+        assert isinstance(response, LPResponse)
+        assert was_healed is True
+        assert validation_details['healing']['attempted'] is True
+        assert validation_details['healing']['successful'] is True
+        mock_recover.assert_called_once()
+
 
 # ──────────────────────────────────────────────────────────────
 # Response Building Tests
@@ -471,6 +513,25 @@ class TestBuildResponseMessage:
         
         assert 'Self-healing' in message
         assert '⚠️' in message
+
+    def test_build_response_message_formats_grouped_subscripts(self):
+        """Test grouped subscripts render differently from multiplication."""
+        lp = LinearProgram(
+            problem_description='Indexed test',
+            objective_type='minimize',
+            objective_function='x_ij + x_i*j',
+            decision_variables=['x_ij', 'x_i*j'],
+            constraints=['x_ij >= 0', 'x_i*j <= 3'],
+            variable_bounds={'x_ij': '>= 0'}
+        )
+
+        response = LPResponse(linear_program=lp, explanation='Test')
+        message = build_response_message(lp, response, False)
+
+        assert '$x_{ij}$' in message
+        assert '$x_{i} \\cdot j$' in message
+        assert 'x_{ij} \\geq 0' in message
+        assert 'x_{i} \\cdot j \\leq 3' in message
     
     def test_build_response_message_no_healing(self):
         """Test response message without healing flag"""
@@ -486,6 +547,27 @@ class TestBuildResponseMessage:
         message = build_response_message(lp, response, False)
         
         assert 'Self-healing' not in message
+
+    def test_build_response_message_renders_clarification_questions(self):
+        """Test clarification questions are shown in their own section."""
+        lp = LinearProgram(
+            problem_description='Clarification needed',
+            objective_type='minimize',
+            objective_function='0',
+            decision_variables=['x_placeholder'],
+            constraints=[]
+        )
+
+        response = LPResponse(
+            linear_program=lp,
+            explanation='Need more data',
+            suggestions=['What is the objective?', 'Add data after clarification']
+        )
+        message = build_response_message(lp, response, False)
+
+        assert 'Questions for Clarification' in message
+        assert 'What is the objective?' in message
+        assert 'Add data after clarification' in message
 
 
 # ──────────────────────────────────────────────────────────────
