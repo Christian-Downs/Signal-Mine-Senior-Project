@@ -181,6 +181,8 @@ def parse_model_json(raw_content: str) -> dict:
     """Parse model output into JSON, tolerating common wrapper formats."""
     text = (raw_content or '').strip()
     candidates = [text]
+    decoder = json.JSONDecoder()
+    print(text)
 
     fence_match = re.search(r'```(?:json)?\s*(.*?)```', text, re.DOTALL)
     if fence_match:
@@ -202,6 +204,15 @@ def parse_model_json(raw_content: str) -> dict:
             return json.loads(candidate)
         except json.JSONDecodeError as exc:
             last_error = exc
+
+        # Fall back to extracting the first complete JSON object from noisy text.
+        for match in re.finditer(r'\{', candidate):
+            try:
+                parsed, _ = decoder.raw_decode(candidate[match.start():])
+                if isinstance(parsed, dict):
+                    return parsed
+            except json.JSONDecodeError as exc:
+                last_error = exc
 
     raise ValueError(f"Invalid JSON returned by model: {last_error}")
 
@@ -581,6 +592,16 @@ $${lp.latex_formulation or '\\text{Not provided}'}$$
     return msg
 
 
+def build_raw_passthrough_message(raw_content: str, error_message: str) -> str:
+    """Return the raw model response when structured formatting cannot be recovered."""
+    content = (raw_content or '').strip() or 'No raw model response was available.'
+    return (
+        '⚠️ *Structured parsing failed, so the raw model response is shown below.*\n\n'
+        f'**Parsing Error:** {error_message}\n\n'
+        f'{content}'
+    )
+
+
 # ──────────────────────────────────────────────────────────────
 # Vercel Handler
 # ──────────────────────────────────────────────────────────────
@@ -594,6 +615,11 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
+        raw_content = ''
+        tokens_used = None
+        response_time_ms = None
+        model = DEFAULT_MODEL
+        db_chat_id = None
         try:
             start_time = time.time()
             
@@ -754,9 +780,35 @@ class handler(BaseHTTPRequestHandler):
             })
             
         except ValueError as e:
-            self._send_json({"error": str(e)}, 422)
+            if raw_content:
+                self._send_json({
+                    "message": build_raw_passthrough_message(raw_content, str(e)),
+                    "linear_program": None,
+                    "was_healed": False,
+                    "conversation_id": db_chat_id if db_chat_id else None,
+                    "model_used": model,
+                    "response_time_ms": response_time_ms,
+                    "tokens_used": tokens_used,
+                    "raw_response": raw_content,
+                    "warning": "Returned raw model response because structured parsing failed."
+                })
+            else:
+                self._send_json({"error": str(e)}, 422)
         except Exception as e:
-            self._send_json({"error": f"Server error: {str(e)}"}, 500)
+            if raw_content:
+                self._send_json({
+                    "message": build_raw_passthrough_message(raw_content, str(e)),
+                    "linear_program": None,
+                    "was_healed": False,
+                    "conversation_id": db_chat_id if db_chat_id else None,
+                    "model_used": model,
+                    "response_time_ms": response_time_ms,
+                    "tokens_used": tokens_used,
+                    "raw_response": raw_content,
+                    "warning": "Returned raw model response because structured parsing failed."
+                })
+            else:
+                self._send_json({"error": f"Server error: {str(e)}"}, 500)
 
     def _send_json(self, data: dict, status: int = 200):
         self.send_response(status)

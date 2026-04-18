@@ -19,7 +19,8 @@ from api.chat import (
     LinearProgram, LPResponse, AVAILABLE_MODELS, DEFAULT_MODEL,
     LP_GENERATOR_SYSTEM_PROMPT, LP_FIXER_SYSTEM_PROMPT,
     get_openai_client, get_auth_user, generate_lp, fix_lp,
-    validate_and_heal, build_response_message, build_questionnaire_fallback
+    validate_and_heal, build_response_message, build_questionnaire_fallback,
+    parse_model_json
 )
 
 
@@ -248,6 +249,15 @@ class TestGetAuthUser:
 
 class TestGenerateLP:
     """Tests for LP generation from OpenAI"""
+
+    def test_parse_model_json_extracts_first_object_from_noisy_text(self):
+        """Test parser accepts valid JSON followed by trailing non-JSON text."""
+        payload = json.dumps(create_sample_lp_response())
+        noisy = payload + "\n\nExtra formatter output that should be ignored"
+
+        parsed = parse_model_json(noisy)
+
+        assert parsed['linear_program']['objective_type'] == 'maximize'
     
     @patch('api.chat.get_openai_client')
     def test_generate_lp_success(self, mock_get_client):
