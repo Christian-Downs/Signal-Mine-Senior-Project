@@ -476,6 +476,25 @@ class TestLPGeneration:
         
         assert 'Self-healing' in message
 
+    def test_build_response_message_formats_grouped_subscripts(self):
+        """Test grouped subscripts render differently from multiplication."""
+        lp = LinearProgram(
+            problem_description='Indexed test',
+            objective_type='minimize',
+            objective_function='x_ij + x_i*j',
+            decision_variables=['x_ij', 'x_i*j'],
+            constraints=['x_ij >= 0', 'x_i*j <= 3'],
+            variable_bounds={'x_ij': '>= 0'}
+        )
+
+        response = LPResponse(linear_program=lp, explanation='Test')
+        message = build_response_message(lp, response, False)
+
+        assert '$x_{ij}$' in message
+        assert '$x_{i} \\cdot j$' in message
+        assert 'x_{ij} \\geq 0' in message
+        assert 'x_{i} \\cdot j \\leq 3' in message
+
 
 # ──────────────────────────────────────────────────────────────
 # Chat Endpoint with LP Generation Tests
