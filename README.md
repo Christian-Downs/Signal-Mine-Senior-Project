@@ -58,47 +58,16 @@ SECRET_KEY=your-secret-key
 
 ---
 
-## Local Development
+## Repository Scope
 
-### 1. Clone the repository
-```bash
-git clone https://github.com/Christian-Downs/Signal-Mine-Senior-Project
-cd Signal-Mine-Senior-Project
-```
+This repository is organized around the Vercel deployment path only:
 
-### 2. Install dependencies
-```bash
-pip install -r requirements.txt
-```
+- `api/` contains the serverless Python handlers
+- `public/` contains the static frontend assets served by Vercel
+- `vercel.json` defines routing between the frontend and API handlers
+- `requirements.txt` and `api/requirements.txt` define Python dependencies for deployment
 
-### 3. Set up environment variables
-Create a `.env` file:
-```env
-# OpenAI API Key
-OPENAI_API_KEY=sk-your-key-here
-
-# Database (Neon PostgreSQL)
-PGHOST=ep-solitary-math-aijp7w88-pooler.c-4.us-east-1.aws.neon.tech
-PGDATABASE=neondb
-PGUSER=neondb_owner
-PGPASSWORD=your-password
-PGSSLMODE=require
-
-# Session Secret
-SECRET_KEY=your-secret-key
-```
-
-### 4. Initialize the database
-```bash
-python init_db.py
-```
-
-### 5. Run the server
-```bash
-python main.py
-```
-
-Open http://localhost:5000 in your browser.
+The older local Flask server path has been removed to keep the workspace aligned with production.
 
 ---
 
@@ -162,9 +131,6 @@ Signal-Mine-Senior-Project/
 │   ├── index.html      # Main HTML page
 │   └── styles.css      # Styles
 ├── .env                # Environment variables
-├── frontend.py         # Flask server (local development)
-├── init_db.py          # Database initialization script
-├── main.py             # Main entry point
 ├── requirements.txt    # Python dependencies
 └── vercel.json         # Vercel configuration
 ```
