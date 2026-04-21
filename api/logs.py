@@ -29,6 +29,32 @@ def get_auth_user(headers):
     return session
 
 
+def extract_user_id(user: dict):
+    """Support multiple user-id key shapes from auth/session payloads."""
+    if not isinstance(user, dict):
+        return None
+    return user.get('user_id') or user.get('id') or user.get('ID')
+
+
+def build_summary(serialized_logs):
+    total_tokens = sum(log.get('tokens_used', 0) or 0 for log in serialized_logs)
+    avg_response_time = 0
+    response_times = [log.get('response_time_ms', 0) for log in serialized_logs if log.get('response_time_ms')]
+    if response_times:
+        avg_response_time = sum(response_times) / len(response_times)
+
+    healed_count = sum(1 for log in serialized_logs if log.get('was_healed'))
+    models_used = list(set(log.get('model_used', 'unknown') for log in serialized_logs if log.get('model_used')))
+
+    return {
+        'total_requests': len(serialized_logs),
+        'total_tokens': total_tokens,
+        'avg_response_time_ms': round(avg_response_time, 2),
+        'healed_count': healed_count,
+        'models_used': models_used,
+    }
+
+
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(204)
@@ -55,7 +81,8 @@ class handler(BaseHTTPRequestHandler):
                 serialized_logs = [self._serialize_dict(log) if log else log for log in logs]
                 self._send_json({
                     'logs': serialized_logs,
-                    'chat_id': int(chat_id)
+                    'chat_id': int(chat_id),
+                    'summary': build_summary(serialized_logs)
                 })
                 return
 
@@ -66,33 +93,24 @@ class handler(BaseHTTPRequestHandler):
                 serialized_logs = [self._serialize_dict(log) if log else log for log in logs]
                 self._send_json({
                     'logs': serialized_logs,
-                    'message_id': int(message_id)
+                    'message_id': int(message_id),
+                    'summary': build_summary(serialized_logs)
                 })
                 return
             
             # Get user's recent logs
             limit = int(query.get('limit', [100])[0])
-            logs = get_user_logs(user['user_id'], limit)
+            user_id = extract_user_id(user)
+            if not user_id:
+                self._send_json({'error': 'Authentication required'}, 401)
+                return
+
+            logs = get_user_logs(user_id, limit)
             serialized_logs = [self._serialize_dict(log) if log else log for log in logs]
-
-            # Calculate summary stats
-            total_tokens = sum(log.get('tokens_used', 0) or 0 for log in serialized_logs)
-            avg_response_time = 0
-            response_times = [log.get('response_time_ms', 0) for log in serialized_logs if log.get('response_time_ms')]
-            if response_times:
-                avg_response_time = sum(response_times) / len(response_times)
-
-            healed_count = sum(1 for log in serialized_logs if log.get('was_healed'))
 
             self._send_json({
                 'logs': serialized_logs,
-                'summary': {
-                    'total_requests': len(serialized_logs),
-                    'total_tokens': total_tokens,
-                    'avg_response_time_ms': round(avg_response_time, 2),
-                    'healed_count': healed_count,
-                    'models_used': list(set(log.get('model_used', 'unknown') for log in serialized_logs if log.get('model_used')))
-                }
+                'summary': build_summary(serialized_logs)
             })
             
         except Exception as e:

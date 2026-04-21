@@ -75,6 +75,8 @@ AVAILABLE_MODELS = {
 }
 
 DEFAULT_MODEL = "gpt-4o-mini"
+MAX_HISTORY_MESSAGES = 8
+MAX_HISTORY_CHARS = 1200
 
 LP_GENERATOR_SYSTEM_PROMPT = """You are an expert in linear programming and mathematical optimization.
 
@@ -182,7 +184,6 @@ def parse_model_json(raw_content: str) -> dict:
     text = (raw_content or '').strip()
     candidates = [text]
     decoder = json.JSONDecoder()
-    print(text)
 
     fence_match = re.search(r'```(?:json)?\s*(.*?)```', text, re.DOTALL)
     if fence_match:
@@ -215,6 +216,65 @@ def parse_model_json(raw_content: str) -> dict:
                 last_error = exc
 
     raise ValueError(f"Invalid JSON returned by model: {last_error}")
+
+
+def sanitize_history(history: List[dict]) -> List[dict]:
+    """Keep only the most recent chat turns and trim oversized content."""
+    if not isinstance(history, list):
+        return []
+
+    sanitized = []
+    for item in history[-MAX_HISTORY_MESSAGES:]:
+        if not isinstance(item, dict):
+            continue
+        role = item.get('role')
+        content = item.get('content', '')
+        if role not in {'user', 'assistant', 'system'}:
+            continue
+        content_text = str(content)
+        if len(content_text) > MAX_HISTORY_CHARS:
+            content_text = content_text[:MAX_HISTORY_CHARS] + '...'
+        sanitized.append({'role': role, 'content': content_text})
+
+    return sanitized
+
+
+def parse_variable_bound(bound_text: str, var_name: str) -> tuple:
+    """Parse common variable bound formats into (lower, upper) floats/None."""
+    text = (bound_text or '').strip()
+    if not text:
+        return (0.0, None)
+
+    normalized = text.replace('≤', '<=').replace('≥', '>=')
+    compact = normalized.replace(' ', '')
+    var = (var_name or '').strip()
+
+    if compact.lower() in {'free', 'unbounded'}:
+        return (None, None)
+
+    chain = re.match(r'^(-?\d+(?:\.\d+)?)<=([A-Za-z][A-Za-z0-9_]*)<=(-?\d+(?:\.\d+)?)$', compact)
+    if chain and chain.group(2) == var:
+        return (float(chain.group(1)), float(chain.group(3)))
+
+    if var:
+        if compact.startswith(var + '>='):
+            return (float(compact[len(var) + 2:]), None)
+        if compact.startswith(var + '<='):
+            return (0.0, float(compact[len(var) + 2:]))
+        if compact.endswith('<=' + var):
+            return (float(compact[:-len(var) - 2]), None)
+        if compact.endswith('>=' + var):
+            return (None, float(compact[:-len(var) - 2]))
+
+    if compact.startswith('>='):
+        return (float(compact[2:]), None)
+    if compact.startswith('<='):
+        return (0.0, float(compact[2:]))
+
+    try:
+        return (float(compact), None)
+    except ValueError:
+        return (0.0, None)
 
 
 def build_questionnaire_fallback(user_prompt: str, error_message: str, broken_content: str = '') -> dict:
@@ -399,7 +459,8 @@ def validate_lp_with_scipy(lp_data: dict) -> tuple:
         variables = lp.get('decision_variables', [])
         if not variables:
             return False, "No decision variables defined"
-        
+                                                                                                                                                                                                                                                                            
+                                                                                                                                                                                                                                                                                  
         objective = lp.get('objective_function', '')
         if not objective:
             return False, "No objective function defined"
@@ -441,15 +502,8 @@ def validate_lp_with_scipy(lp_data: dict) -> tuple:
         bounds = []
         for var in variables:
             bound = variable_bounds.get(var, '>= 0')
-            # Parse bound string like ">= 0" or "0 <= x <= 10"
-            if '>=' in bound:
-                lower = float(bound.split('>=')[1].strip())
-                bounds.append((lower, None))
-            elif '<=' in bound:
-                upper = float(bound.split('<=')[1].strip())
-                bounds.append((0, upper))
-            else:
-                bounds.append((0, None))  # Default: non-negative
+            lower, upper = parse_variable_bound(bound, var)
+            bounds.append((lower, upper))
         
         # Prepare arguments for linprog
         kwargs = {'c': c, 'bounds': bounds, 'method': 'highs'}
@@ -643,6 +697,8 @@ class handler(BaseHTTPRequestHandler):
             if not prompt:
                 self._send_json({"error": "Missing prompt"}, 400)
                 return
+
+            history = sanitize_history(history)
             
             # Get authenticated user (optional)
             user = get_auth_user(self.headers)

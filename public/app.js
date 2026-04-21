@@ -54,6 +54,9 @@ let isLoading = false;
 let userModels = [];
 let selectedCustomModelId = null;
 
+const MAX_HISTORY_MESSAGES = 8;
+const MAX_HISTORY_CONTENT_LENGTH = 1200;
+
 // ─────────────────────────────────────────────────────────────
 // API Configuration
 // ─────────────────────────────────────────────────────────────
@@ -202,7 +205,8 @@ async function loadUserData() {
     
     await Promise.all([
         loadUserModels(),
-        loadChatHistory()
+        loadChatHistory(),
+        loadLogs()
     ]);
 }
 
@@ -471,8 +475,9 @@ async function sendMessage(prompt) {
                 conversationId = data.conversation_id;
             }
             
-            conversationHistory.push({ role: 'user', content: prompt });
-            conversationHistory.push({ role: 'assistant', content: JSON.stringify(data.linear_program) });
+            conversationHistory.push({ role: 'user', content: truncateForHistory(prompt) });
+            conversationHistory.push({ role: 'assistant', content: buildAssistantHistoryEntry(data) });
+            trimConversationHistory();
             addMessage('assistant', data.message, false, false, data.was_healed);
             
             // Refresh chat history if logged in and chat was saved
@@ -504,9 +509,12 @@ async function loadLogs() {
         if (resp.ok) {
             const data = await resp.json();
             renderLogs(data);
+        } else {
+            renderLogs({ logs: [], summary: {} });
         }
     } catch (e) {
         console.error('Failed to load logs:', e);
+        renderLogs({ logs: [], summary: {} });
     }
 }
 
@@ -520,6 +528,13 @@ function renderLogs(data) {
     // Render logs table
     const tbody = document.getElementById('logsBody');
     tbody.innerHTML = '';
+
+    if (!data.logs || data.logs.length === 0) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td colspan="7" class="text-center text-muted">No logs available yet.</td>';
+        tbody.appendChild(tr);
+        return;
+    }
 
     (data.logs || []).forEach((log, index) => {
         const date = new Date(log.created_at);
@@ -672,6 +687,37 @@ function renderLogDetails(logData) {
 
     html += '</div>';
     return html;
+}
+
+function truncateForHistory(text) {
+    const value = (text || '').trim();
+    if (!value) return '';
+    if (value.length <= MAX_HISTORY_CONTENT_LENGTH) return value;
+    return `${value.substring(0, MAX_HISTORY_CONTENT_LENGTH)}...`;
+}
+
+function buildAssistantHistoryEntry(data) {
+    const lp = data?.linear_program?.linear_program;
+    if (!lp) {
+        return truncateForHistory(data?.message || '');
+    }
+
+    const variableCount = Array.isArray(lp.decision_variables) ? lp.decision_variables.length : 0;
+    const constraintCount = Array.isArray(lp.constraints) ? lp.constraints.length : 0;
+    const summary = [
+        `LP objective: ${lp.objective_type || 'unknown'} ${lp.objective_function || ''}`,
+        `Variables: ${variableCount}`,
+        `Constraints: ${constraintCount}`,
+        data?.was_healed ? 'Self-healing applied' : 'Self-healing not needed'
+    ].join(' | ');
+
+    return truncateForHistory(summary);
+}
+
+function trimConversationHistory() {
+    if (conversationHistory.length > MAX_HISTORY_MESSAGES) {
+        conversationHistory = conversationHistory.slice(-MAX_HISTORY_MESSAGES);
+    }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -997,6 +1043,7 @@ modelForm.addEventListener('submit', async (e) => {
 
 // Logs modal event
 document.getElementById('logsModal').addEventListener('show.bs.modal', loadLogs);
+document.getElementById('btn-view-logs').addEventListener('click', loadLogs);
 
 // ─────────────────────────────────────────────────────────────
 // Initialize
